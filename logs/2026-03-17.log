@@ -1,0 +1,66 @@
+2026-03-17 17:52:08 - __main__ - INFO - Processing medical PDF: medical.pdf
+2026-03-17 17:52:08 - __main__ - ERROR - ERROR | Context: Loading medical PDF: medical.pdf | Error: File not found: data/medical.pdf
+Traceback (most recent call last):
+  File "/Users/sriramdagala/Desktop/Projects-Krish Naik/Medical_RAG_Chatbot/app/components/pdf_loader.py", line 235, in load_medical_pdf
+    raise FileNotFoundError(f"File not found: {file_path}")
+FileNotFoundError: File not found: data/medical.pdf
+2026-03-17 17:56:55 - __main__ - INFO - Processing medical PDF: medical.pdf
+2026-03-17 17:56:55 - __main__ - ERROR - ERROR | Context: Loading medical PDF: medical.pdf | Error: File not found: data/medical.pdf
+Traceback (most recent call last):
+  File "/Users/sriramdagala/Desktop/Projects-Krish Naik/Medical_RAG_Chatbot/app/components/pdf_loader.py", line 235, in load_medical_pdf
+    raise FileNotFoundError(f"File not found: {file_path}")
+FileNotFoundError: File not found: data/medical.pdf
+2026-03-17 17:59:11 - __main__ - INFO - Processing medical PDF: medical.pdf
+2026-03-17 17:59:11 - __main__ - ERROR - ERROR | Context: Loading medical PDF: medical.pdf | Error: File not found: data/medical.pdf
+Traceback (most recent call last):
+  File "/Users/sriramdagala/Desktop/Projects-Krish Naik/Medical_RAG_Chatbot/app/components/pdf_loader.py", line 235, in load_medical_pdf
+    raise FileNotFoundError(f"File not found: {file_path}")
+FileNotFoundError: File not found: data/medical.pdf
+2026-03-17 18:00:39 - __main__ - INFO - Processing medical PDF: medical.pdf
+2026-03-17 18:00:39 - __main__ - ERROR - ERROR | Context: Loading medical PDF: medical.pdf | Error: File not found: data/medical.pdf
+Traceback (most recent call last):
+  File "/Users/sriramdagala/Desktop/Projects-Krish Naik/Medical_RAG_Chatbot/app/components/pdf_loader.py", line 235, in load_medical_pdf
+    raise FileNotFoundError(f"File not found: {file_path}")
+FileNotFoundError: File not found: data/medical.pdf
+2026-03-17 18:02:42 - __main__ - INFO - Processing medical PDF: medical.pdf
+2026-03-17 18:02:42 - __main__ - ERROR - ERROR | Context: Loading medical PDF: medical.pdf | Error: File not found: data/medical.pdf
+Traceback (most recent call last):
+  File "/Users/sriramdagala/Desktop/Projects-Krish Naik/Medical_RAG_Chatbot/app/components/pdf_loader.py", line 235, in load_medical_pdf
+    raise FileNotFoundError(f"File not found: {file_path}")
+FileNotFoundError: File not found: data/medical.pdf
+2026-03-17 18:05:09 - __main__ - INFO - Processing medical PDF: The_GALE_ENCYCLOPEDIA_of_MEDICINE_SECOND.pdf
+2026-03-17 18:05:16 - __main__ - INFO - PDF_PROCESS | File: The_GALE_ENCYCLOPEDIA_of_MEDICINE_SECOND.pdf | Pages: 759
+2026-03-17 18:05:16 - __main__ - ERROR - ERROR | Context: Loading medical PDF: The_GALE_ENCYCLOPEDIA_of_MEDICINE_SECOND.pdf | Error: 'MedicalPDFLoader' object has no attribute '_contains_symptoms'
+Traceback (most recent call last):
+  File "/Users/sriramdagala/Desktop/Projects-Krish Naik/Medical_RAG_Chatbot/app/components/pdf_loader.py", line 254, in load_medical_pdf
+    medical_metadata = self.extract_medical_metadata(clean_text, doc.metadata.get('page', 0), filename)
+                       ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/Users/sriramdagala/Desktop/Projects-Krish Naik/Medical_RAG_Chatbot/app/components/pdf_loader.py", line 58, in extract_medical_metadata
+    "has_symptoms": self._contains_symptoms(text),
+                    ^^^^^^^^^^^^^^^^^^^^^^^
+AttributeError: 'MedicalPDFLoader' object has no attribute '_contains_symptoms'
+2026-03-17 18:05:23 - __main__ - INFO - Processing medical PDF: The_GALE_ENCYCLOPEDIA_of_MEDICINE_SECOND.pdf
+2026-03-17 18:05:29 - __main__ - INFO - PDF_PROCESS | File: The_GALE_ENCYCLOPEDIA_of_MEDICINE_SECOND.pdf | Pages: 759
+2026-03-17 18:05:29 - __main__ - ERROR - ERROR | Context: Loading medical PDF: The_GALE_ENCYCLOPEDIA_of_MEDICINE_SECOND.pdf | Error: 'MedicalPDFLoader' object has no attribute '_contains_symptoms'
+Traceback (most recent call last):
+  File "/Users/sriramdagala/Desktop/Projects-Krish Naik/Medical_RAG_Chatbot/app/components/pdf_loader.py", line 254, in load_medical_pdf
+    medical_metadata = self.extract_medical_metadata(clean_text, doc.metadata.get('page', 0), filename)
+                       ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/Users/sriramdagala/Desktop/Projects-Krish Naik/Medical_RAG_Chatbot/app/components/pdf_loader.py", line 58, in extract_medical_metadata
+    "has_symptoms": self._contains_symptoms(text),
+                    ^^^^^^^^^^^^^^^^^^^^^^^
+AttributeError: 'MedicalPDFLoader' object has no attribute '_contains_symptoms'
+2026-03-17 18:07:07 - __main__ - INFO - Processing medical PDF: The_GALE_ENCYCLOPEDIA_of_MEDICINE_SECOND.pdf
+2026-03-17 18:07:13 - __main__ - INFO - PDF_PROCESS | File: The_GALE_ENCYCLOPEDIA_of_MEDICINE_SECOND.pdf | Pages: 759
+2026-03-17 18:07:14 - __main__ - INFO - Enhanced 758 pages with medical metadata
+2026-03-17 18:07:14 - __main__ - INFO - EMBEDDING | Chunks: 7590 | Model: text-split
+2026-03-17 18:07:14 - __main__ - INFO - Successfully processed 7590 chunks from The_GALE_ENCYCLOPEDIA_of_MEDICINE_SECOND.pdf
+2026-03-17 18:07:14 - __main__ - INFO - Filtered 7590 chunks to 3039 chunks
+2026-03-17 18:07:14 - __main__ - INFO - Filtered 7590 chunks to 814 chunks
+2026-03-17 18:07:31 - __main__ - INFO - Processing medical PDF: The_GALE_ENCYCLOPEDIA_of_MEDICINE_SECOND.pdf
+2026-03-17 18:07:37 - __main__ - INFO - PDF_PROCESS | File: The_GALE_ENCYCLOPEDIA_of_MEDICINE_SECOND.pdf | Pages: 759
+2026-03-17 18:07:38 - __main__ - INFO - Enhanced 758 pages with medical metadata
+2026-03-17 18:07:38 - __main__ - INFO - EMBEDDING | Chunks: 7590 | Model: text-split
+2026-03-17 18:07:38 - __main__ - INFO - Successfully processed 7590 chunks from The_GALE_ENCYCLOPEDIA_of_MEDICINE_SECOND.pdf
+2026-03-17 18:07:38 - __main__ - INFO - Filtered 7590 chunks to 3039 chunks
+2026-03-17 18:07:38 - __main__ - INFO - Filtered 7590 chunks to 814 chunks
