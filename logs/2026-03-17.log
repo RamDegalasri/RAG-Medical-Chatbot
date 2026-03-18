@@ -64,3 +64,10 @@ AttributeError: 'MedicalPDFLoader' object has no attribute '_contains_symptoms'
 2026-03-17 18:07:38 - __main__ - INFO - Successfully processed 7590 chunks from The_GALE_ENCYCLOPEDIA_of_MEDICINE_SECOND.pdf
 2026-03-17 18:07:38 - __main__ - INFO - Filtered 7590 chunks to 3039 chunks
 2026-03-17 18:07:38 - __main__ - INFO - Filtered 7590 chunks to 814 chunks
+2026-03-17 21:45:34 - __main__ - INFO - Processing medical PDF: The_GALE_ENCYCLOPEDIA_of_MEDICINE_SECOND.pdf
+2026-03-17 21:45:40 - __main__ - INFO - PDF_PROCESS | File: The_GALE_ENCYCLOPEDIA_of_MEDICINE_SECOND.pdf | Pages: 759
+2026-03-17 21:45:41 - __main__ - INFO - Enhanced 758 pages with medical metadata
+2026-03-17 21:45:41 - __main__ - INFO - EMBEDDING | Chunks: 7590 | Model: text-split
+2026-03-17 21:45:41 - __main__ - INFO - Successfully processed 7590 chunks from The_GALE_ENCYCLOPEDIA_of_MEDICINE_SECOND.pdf
+2026-03-17 21:45:41 - __main__ - INFO - Filtered 7590 chunks to 3039 chunks
+2026-03-17 21:45:41 - __main__ - INFO - Filtered 7590 chunks to 814 chunks
