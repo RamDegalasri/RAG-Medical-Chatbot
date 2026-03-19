@@ -1,8 +1,10 @@
 langchain
 langchain-community
 langchain-groq
+langchain-openai
 faiss-cpu
 pypdf
 python-dotenv
 flask
 langchain-text-splitters==0.3.2
+pinecone
