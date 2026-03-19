@@ -376,7 +376,7 @@ if __name__ == "__main__":
     try:
         # Load PDF (adjust filename as needed)
         pdf_loader = MedicalPDFLoader()
-        chunks = pdf_loader.process_all_pdfs()
+        chunks = pdf_loader.process_medical_pdf("The_GALE_ENCYCLOPEDIA_of_MEDICINE_SECOND.pdf")
 
         # Use only first 10 chunks for testing
         test_chunks = chunks[:10]
