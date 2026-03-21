@@ -16,7 +16,7 @@ class Config:
     PINECONE_API_KEY = os.getenv("PINECONE_API_KEY")
     PINECONE_INDEX_NAME = "medical-rag-index"
     PINECONE_CLOUD = "aws"
-    PINECONE_REGION = "us-central-1"
+    PINECONE_REGION = "us-east-1"
 
     # Data Paths
     DATAPATH = "data/"

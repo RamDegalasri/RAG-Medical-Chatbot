@@ -41,3 +41,103 @@ Traceback (most recent call last):
     "has_symptoms": self._contains_symptoms(text),
                     ^^^^^^^^^^^^^^^^^^^^^^^
 AttributeError: 'MedicalPDFLoader' object has no attribute '_contains_symptoms'
+2026-03-21 11:21:08 - __main__ - ERROR - ERROR | Context: Creating Pinecone index with HNSW | Error: (404)
+Reason: Not Found
+HTTP response headers: HTTPHeaderDict({'content-type': 'text/plain; charset=utf-8', 'vary': 'origin, access-control-request-method, access-control-request-headers', 'access-control-allow-origin': '*', 'access-control-expose-headers': '*', 'x-pinecone-api-version': '2025-10', 'x-cloud-trace-context': 'add2796615a2feba634fa7447b39cfa2', 'date': 'Sat, 21 Mar 2026 16:21:08 GMT', 'server': 'Google Frontend', 'Content-Length': '106', 'Via': '1.1 google', 'Alt-Svc': 'h3=":443"; ma=2592000'})
+HTTP response body: {"error":{"code":"NOT_FOUND","message":"Resource cloud: aws region: us-central-1 not found"},"status":404}
+Traceback (most recent call last):
+  File "/Users/sriramdagala/Desktop/Projects-Krish Naik/Medical_RAG_Chatbot/app/components/vector_store.py", line 78, in create_index
+    self.pc.create_index(
+  File "/Users/sriramdagala/Desktop/Projects-Krish Naik/Medical_RAG_Chatbot/venv/lib/python3.12/site-packages/pinecone/pinecone.py", line 499, in create_index
+    return self.db.index.create(
+           ^^^^^^^^^^^^^^^^^^^^^
+  File "/Users/sriramdagala/Desktop/Projects-Krish Naik/Medical_RAG_Chatbot/venv/lib/python3.12/site-packages/pinecone/utils/require_kwargs.py", line 26, in wrapper
+    return func(*args, **kwargs)
+           ^^^^^^^^^^^^^^^^^^^^^
+  File "/Users/sriramdagala/Desktop/Projects-Krish Naik/Medical_RAG_Chatbot/venv/lib/python3.12/site-packages/pinecone/db_control/resources/sync/index.py", line 95, in create
+    resp = self._index_api.create_index(create_index_request=req)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/Users/sriramdagala/Desktop/Projects-Krish Naik/Medical_RAG_Chatbot/venv/lib/python3.12/site-packages/pinecone/openapi_support/endpoint.py", line 102, in __call__
+    return self.callable(self, *args, **kwargs)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/Users/sriramdagala/Desktop/Projects-Krish Naik/Medical_RAG_Chatbot/venv/lib/python3.12/site-packages/pinecone/core/openapi/db_control/api/manage_indexes_api.py", line 375, in __create_index
+    return cast(IndexModel | ApplyResult[IndexModel], self.call_with_http_info(**kwargs))
+                                                      ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/Users/sriramdagala/Desktop/Projects-Krish Naik/Medical_RAG_Chatbot/venv/lib/python3.12/site-packages/pinecone/openapi_support/endpoint.py", line 134, in call_with_http_info
+    return self.api_client.call_api(
+           ^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/Users/sriramdagala/Desktop/Projects-Krish Naik/Medical_RAG_Chatbot/venv/lib/python3.12/site-packages/pinecone/openapi_support/api_client.py", line 320, in call_api
+    return self.__call_api(
+           ^^^^^^^^^^^^^^^^
+  File "/Users/sriramdagala/Desktop/Projects-Krish Naik/Medical_RAG_Chatbot/venv/lib/python3.12/site-packages/pinecone/openapi_support/api_client.py", line 185, in __call_api
+    raise e
+  File "/Users/sriramdagala/Desktop/Projects-Krish Naik/Medical_RAG_Chatbot/venv/lib/python3.12/site-packages/pinecone/openapi_support/api_client.py", line 173, in __call_api
+    response_data = self.request(
+                    ^^^^^^^^^^^^^
+  File "/Users/sriramdagala/Desktop/Projects-Krish Naik/Medical_RAG_Chatbot/venv/lib/python3.12/site-packages/pinecone/openapi_support/api_client.py", line 400, in request
+    return self.rest_client.POST(
+           ^^^^^^^^^^^^^^^^^^^^^^
+  File "/Users/sriramdagala/Desktop/Projects-Krish Naik/Medical_RAG_Chatbot/venv/lib/python3.12/site-packages/pinecone/openapi_support/rest_utils.py", line 146, in POST
+    return self.request(
+           ^^^^^^^^^^^^^
+  File "/Users/sriramdagala/Desktop/Projects-Krish Naik/Medical_RAG_Chatbot/venv/lib/python3.12/site-packages/pinecone/openapi_support/rest_urllib3.py", line 270, in request
+    return raise_exceptions_or_return(r)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/Users/sriramdagala/Desktop/Projects-Krish Naik/Medical_RAG_Chatbot/venv/lib/python3.12/site-packages/pinecone/openapi_support/rest_utils.py", line 44, in raise_exceptions_or_return
+    raise NotFoundException(http_resp=r)
+pinecone.exceptions.exceptions.NotFoundException: (404)
+Reason: Not Found
+HTTP response headers: HTTPHeaderDict({'content-type': 'text/plain; charset=utf-8', 'vary': 'origin, access-control-request-method, access-control-request-headers', 'access-control-allow-origin': '*', 'access-control-expose-headers': '*', 'x-pinecone-api-version': '2025-10', 'x-cloud-trace-context': 'add2796615a2feba634fa7447b39cfa2', 'date': 'Sat, 21 Mar 2026 16:21:08 GMT', 'server': 'Google Frontend', 'Content-Length': '106', 'Via': '1.1 google', 'Alt-Svc': 'h3=":443"; ma=2592000'})
+HTTP response body: {"error":{"code":"NOT_FOUND","message":"Resource cloud: aws region: us-central-1 not found"},"status":404}
+
+2026-03-21 11:21:08 - __main__ - ERROR - ERROR | Context: Vector storage pipeline | Error: (404)
+Reason: Not Found
+HTTP response headers: HTTPHeaderDict({'content-type': 'text/plain; charset=utf-8', 'vary': 'origin, access-control-request-method, access-control-request-headers', 'access-control-allow-origin': '*', 'access-control-expose-headers': '*', 'x-pinecone-api-version': '2025-10', 'x-cloud-trace-context': 'add2796615a2feba634fa7447b39cfa2', 'date': 'Sat, 21 Mar 2026 16:21:08 GMT', 'server': 'Google Frontend', 'Content-Length': '106', 'Via': '1.1 google', 'Alt-Svc': 'h3=":443"; ma=2592000'})
+HTTP response body: {"error":{"code":"NOT_FOUND","message":"Resource cloud: aws region: us-central-1 not found"},"status":404}
+Traceback (most recent call last):
+  File "/Users/sriramdagala/Desktop/Projects-Krish Naik/Medical_RAG_Chatbot/app/components/vector_store.py", line 477, in store_embeddings_pipeline
+    self.vectorstore.create_index(dimension=dimension, force_recreate=True)
+  File "/Users/sriramdagala/Desktop/Projects-Krish Naik/Medical_RAG_Chatbot/app/components/vector_store.py", line 78, in create_index
+    self.pc.create_index(
+  File "/Users/sriramdagala/Desktop/Projects-Krish Naik/Medical_RAG_Chatbot/venv/lib/python3.12/site-packages/pinecone/pinecone.py", line 499, in create_index
+    return self.db.index.create(
+           ^^^^^^^^^^^^^^^^^^^^^
+  File "/Users/sriramdagala/Desktop/Projects-Krish Naik/Medical_RAG_Chatbot/venv/lib/python3.12/site-packages/pinecone/utils/require_kwargs.py", line 26, in wrapper
+    return func(*args, **kwargs)
+           ^^^^^^^^^^^^^^^^^^^^^
+  File "/Users/sriramdagala/Desktop/Projects-Krish Naik/Medical_RAG_Chatbot/venv/lib/python3.12/site-packages/pinecone/db_control/resources/sync/index.py", line 95, in create
+    resp = self._index_api.create_index(create_index_request=req)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/Users/sriramdagala/Desktop/Projects-Krish Naik/Medical_RAG_Chatbot/venv/lib/python3.12/site-packages/pinecone/openapi_support/endpoint.py", line 102, in __call__
+    return self.callable(self, *args, **kwargs)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/Users/sriramdagala/Desktop/Projects-Krish Naik/Medical_RAG_Chatbot/venv/lib/python3.12/site-packages/pinecone/core/openapi/db_control/api/manage_indexes_api.py", line 375, in __create_index
+    return cast(IndexModel | ApplyResult[IndexModel], self.call_with_http_info(**kwargs))
+                                                      ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/Users/sriramdagala/Desktop/Projects-Krish Naik/Medical_RAG_Chatbot/venv/lib/python3.12/site-packages/pinecone/openapi_support/endpoint.py", line 134, in call_with_http_info
+    return self.api_client.call_api(
+           ^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/Users/sriramdagala/Desktop/Projects-Krish Naik/Medical_RAG_Chatbot/venv/lib/python3.12/site-packages/pinecone/openapi_support/api_client.py", line 320, in call_api
+    return self.__call_api(
+           ^^^^^^^^^^^^^^^^
+  File "/Users/sriramdagala/Desktop/Projects-Krish Naik/Medical_RAG_Chatbot/venv/lib/python3.12/site-packages/pinecone/openapi_support/api_client.py", line 185, in __call_api
+    raise e
+  File "/Users/sriramdagala/Desktop/Projects-Krish Naik/Medical_RAG_Chatbot/venv/lib/python3.12/site-packages/pinecone/openapi_support/api_client.py", line 173, in __call_api
+    response_data = self.request(
+                    ^^^^^^^^^^^^^
+  File "/Users/sriramdagala/Desktop/Projects-Krish Naik/Medical_RAG_Chatbot/venv/lib/python3.12/site-packages/pinecone/openapi_support/api_client.py", line 400, in request
+    return self.rest_client.POST(
+           ^^^^^^^^^^^^^^^^^^^^^^
+  File "/Users/sriramdagala/Desktop/Projects-Krish Naik/Medical_RAG_Chatbot/venv/lib/python3.12/site-packages/pinecone/openapi_support/rest_utils.py", line 146, in POST
+    return self.request(
+           ^^^^^^^^^^^^^
+  File "/Users/sriramdagala/Desktop/Projects-Krish Naik/Medical_RAG_Chatbot/venv/lib/python3.12/site-packages/pinecone/openapi_support/rest_urllib3.py", line 270, in request
+    return raise_exceptions_or_return(r)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/Users/sriramdagala/Desktop/Projects-Krish Naik/Medical_RAG_Chatbot/venv/lib/python3.12/site-packages/pinecone/openapi_support/rest_utils.py", line 44, in raise_exceptions_or_return
+    raise NotFoundException(http_resp=r)
+pinecone.exceptions.exceptions.NotFoundException: (404)
+Reason: Not Found
+HTTP response headers: HTTPHeaderDict({'content-type': 'text/plain; charset=utf-8', 'vary': 'origin, access-control-request-method, access-control-request-headers', 'access-control-allow-origin': '*', 'access-control-expose-headers': '*', 'x-pinecone-api-version': '2025-10', 'x-cloud-trace-context': 'add2796615a2feba634fa7447b39cfa2', 'date': 'Sat, 21 Mar 2026 16:21:08 GMT', 'server': 'Google Frontend', 'Content-Length': '106', 'Via': '1.1 google', 'Alt-Svc': 'h3=":443"; ma=2592000'})
+HTTP response body: {"error":{"code":"NOT_FOUND","message":"Resource cloud: aws region: us-central-1 not found"},"status":404}
+

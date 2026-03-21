@@ -480,6 +480,3 @@ if __name__ == "__main__":
     print("  1. Embeddings are ready for vector database storage")
     print("  2. Create vectorstore.py to handle Pinecone/FAISS operations")
     print("  3. Implement similarity search and retrieval")
-
-
-
