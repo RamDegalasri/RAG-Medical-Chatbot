@@ -8,3 +8,5 @@ python-dotenv
 flask
 langchain-text-splitters==0.3.2
 pinecone
+boto3
+botocore
