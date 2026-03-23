@@ -12,9 +12,12 @@ class Config:
     OPENAI_API_KEY = os.getenv("OPENAI_API_KEY")
     OPENAI_EMBEDDING_MODEL = "text-embedding-3-small"
 
+    # AWS Bedrock Embedding Model
+    AWS_BEDROCK_EMBEDDING_MODEL = "cohere.embed-english-v3"
+
     # Pinecone Configuration
     PINECONE_API_KEY = os.getenv("PINECONE_API_KEY")
-    PINECONE_INDEX_NAME = "medical-rag-index"
+    PINECONE_INDEX_NAME = "medical-rag-index-cohere"
     PINECONE_CLOUD = "aws"
     PINECONE_REGION = "us-east-1"
 

@@ -1,4 +1,5 @@
-from langchain_openai import OpenAIEmbeddings
+import boto3
+from langchain_community.embeddings import BedrockEmbeddings
 from langchain.schema import Document
 
 from app.config.config import Config
@@ -9,35 +10,41 @@ import numpy as np
 
 class Medical_Embeddings:
     """
-    Generate embeddings for medical documents using OpenAI
+    Generate embeddings for medical documents using AWS Bedrock Cohere
     This class focuses on embedding generation not vector storage
     """
 
-    def __init__(self, model_name: str = Config.OPENAI_EMBEDDING_MODEL):
+    def __init__(self, model_name: str = Config.AWS_BEDROCK_EMBEDDING_MODEL):
         """
-        Initialize OpenAI embeddings model
+        Initialize AWS Bedrock Cohere embeddings model
 
         Args:
-            model_name: OpenAI embedding model
-                - "text-embedding-3-small" (1536 dims, recommended)
-                - "text-embedding-3-large" (3072 dims, higher quality)
+            model_name: Bedrock embedding model
+                - "cohere.embed-english-v3" (1024 dims, recommended)
+                - "cohere.embed-multilingual-v3" (1024 dims, multilingual)
         """
         self.logger = MedicalRAGLogger(__name__)
         self.model_name = model_name
 
-        # Initialize OpenAI embeddings
-        self.logger.logger.info(f"Initializing OpenAI embedding model: {model_name}")
+        # Initialize Bedrock Cohere embeddings
+        self.logger.logger.info(f"Initializing AWS Bedrock Cohere embedding model: {model_name}")
 
         try:
-            self.embeddings = OpenAIEmbeddings(
-                model = model_name,
-                openai_api_key = Config.OPENAI_API_KEY
+            boto3_session = boto3.Session(
+                aws_access_key_id=Config.AWS_ACCESS_KEY_ID,
+                aws_secret_access_key=Config.AWS_SECRET_ACCESS_KEY,
+                region_name=Config.AWS_REGION
+            )
+            bedrock_client = boto3_session.client("bedrock-runtime")
+            self.embeddings = BedrockEmbeddings(
+                model_id=model_name,
+                client=bedrock_client
             )
 
-            self.logger.logger.info("OpenAI embedding model loaded successfully")
+            self.logger.logger.info("AWS Bedrock Cohere embedding model loaded successfully")
 
         except Exception as e:
-            self.logger.log_error(e, context = "Initializing OpenAI embeddings")
+            self.logger.log_error(e, context = "Initializing AWS Bedrock Cohere embeddings")
             raise
 
     def get_embedding_dimension(self) -> int:
@@ -45,12 +52,10 @@ class Medical_Embeddings:
         Get the dimension of embeddings for this model
 
         Returns:
-            Embedding dimension (1536 or 3072)
+            Embedding dimension (1024 for Cohere v3)
         """
-        if "large" in self.model_name:
-            return 3072
-        else:
-            return 1536
+        # Cohere embed-english-v3 and embed-multilingual-v3 both produce 1024 dims
+        return 1024
         
     def embed_single_chunk(self, chunk: Document) -> Tuple[List[float], Dict]:
         """
@@ -245,7 +250,7 @@ class MedicalEmbeddingPipeline:
     Integrates with pdf_loader to create end-to-end embedding generation.
     """
 
-    def __init__(self, model_name: str = Config.OPENAI_EMBEDDING_MODEL):
+    def __init__(self, model_name: str = Config.AWS_BEDROCK_EMBEDDING_MODEL):
         """
         Initialize embedding pipeline
 
@@ -347,7 +352,7 @@ class MedicalEmbeddingPipeline:
             raise
 
 # Utility function for easy integration with pdf_loader
-def create_embeddings_from_chunks(chunks: List[Document], model_name: str = Config.OPENAI_EMBEDDING_MODEL) -> List[Tuple[List[float], Dict]]:
+def create_embeddings_from_chunks(chunks: List[Document], model_name: str = Config.AWS_BEDROCK_EMBEDDING_MODEL) -> List[Tuple[List[float], Dict]]:
         """
         Convenience function to create embeddings from pdf_loader chunks
 
@@ -407,7 +412,7 @@ if __name__ == "__main__":
     print("Step 2: Initializing embedding pipeline...")
     print("-" * 60)
 
-    pipeline = MedicalEmbeddingPipeline(model_name = Config.OPENAI_EMBEDDING_MODEL)
+    pipeline = MedicalEmbeddingPipeline(model_name = Config.AWS_BEDROCK_EMBEDDING_MODEL)
     print("Pipeline initialized\n")
 
     # Step 3: Generate embeddings

@@ -1,5 +1,4 @@
 from pinecone import Pinecone, ServerlessSpec
-from langchain.schema import Document
 
 from typing import List, Dict, Tuple, Optional
 import time
@@ -41,7 +40,7 @@ class PineconeHNSWVectorStore:
 
         self.index = None
 
-    def create_index(self, dimension: int = 1536, metric: str = "cosine", force_recreate: bool = False):
+    def create_index(self, dimension: int = 1024, metric: str = "cosine", force_recreate: bool = False):
         """
         Create Pinecone index with HNSW search enabled.
 
@@ -49,7 +48,7 @@ class PineconeHNSWVectorStore:
         No manual HNSW confirguation needed - its optimized internally.
 
         Args:
-            dimension: Vector dimension (1536 for text-embedding-3-small)
+            dimension: Vector dimension (1024 for cohere.embed-english-v3)
             metric: Similarity metric - 'cosine' for semantic text search
             force_recreate: If true, delete and recreate existing index
         """
@@ -600,52 +599,47 @@ class MedicalVectorStorePipeline:
 if __name__ == "__main__":
     from app.components.pdf_loader import MedicalPDFLoader
     from app.components.embeddings import MedicalEmbeddingPipeline
-    
+
     print("\n" + "=" * 60)
-    print("PINECONE + HNSW VECTOR STORE - TESTING")
+    print("PINECONE + HNSW VECTOR STORE - INDEXING PIPELINE")
     print("=" * 60 + "\n")
 
-    # Step 1: Prepare test data
-    print("Step 1: Preparing test data...")
+    # Step 1: Load PDFs from data directory
+    print("Step 1: Loading medical PDFs...")
     print("-" * 60)
 
-    test_chunks = [
-        Document(
-            page_content="Diabetes is a chronic disease with high blood sugar levels.",
-            metadata={"category": "endocrine", "section_type": "definition", "page": 100}
-        ),
-        Document(
-            page_content="Common diabetes symptoms include increased thirst and frequent urination.",
-            metadata={"category": "endocrine", "section_type": "symptoms", "page": 101}
-        ),
-        Document(
-            page_content="Heart attack occurs when blood flow to the heart is blocked.",
-            metadata={"category": "cardiovascular", "section_type": "definition", "page": 200}
-        ),
-        Document(
-            page_content="Chest pain and shortness of breath are heart attack symptoms.",
-            metadata={"category": "cardiovascular", "section_type": "symptoms", "page": 201}
-        ),
-        Document(
-            page_content="Pneumonia is a lung infection causing breathing difficulties.",
-            metadata={"category": "respiratory", "section_type": "definition", "page": 300}
-        ),
-    ]
+    try:
+        import os
+        pdf_loader = MedicalPDFLoader()
+        pdf_files = [f for f in os.listdir(Config.DATAPATH) if f.endswith(".pdf")]
+        if not pdf_files:
+            print(f"x No PDF files found in {Config.DATAPATH}")
+            exit(1)
+        print(f"Found {len(pdf_files)} PDF(s): {pdf_files}")
+        chunks = []
+        for pdf_file in pdf_files:
+            file_chunks = pdf_loader.process_medical_pdf(pdf_file)
+            chunks.extend(file_chunks)
+            print(f"  {pdf_file}: {len(file_chunks)} chunks")
+        print(f"Total: {len(chunks)} chunks loaded\n")
+    except Exception as e:
+        print(f"x Error loading PDFs: {e}\n")
+        exit(1)
 
-    # Step 2: Generate embeddings
-    print(f"Step 2: Generating embeddings...")
+    # Step 2: Generate embeddings with Bedrock Cohere (1024 dims)
+    print("Step 2: Generating Cohere embeddings (1024 dims)...")
     print("-" * 60)
 
     try:
         embedding_pipeline = MedicalEmbeddingPipeline()
-        embeddings = embedding_pipeline.process_chunks_to_embeddings(test_chunks)
+        embeddings = embedding_pipeline.process_chunks_to_embeddings(chunks)
         print(f"Generated {len(embeddings)} embeddings\n")
     except Exception as e:
-        print(f"x Error: {e}\n")
+        print(f"x Error generating embeddings: {e}\n")
         exit(1)
 
-    # Step 3: Store in Pinecone with HNSW
-    print("Step 3: Storing in Pinecone (HNSW enabled)...")
+    # Step 3: Create new 1024-dim index and store embeddings
+    print("Step 3: Creating new Pinecone index (1024 dims) and storing embeddings...")
     print("-" * 60)
 
     try:
@@ -654,7 +648,7 @@ if __name__ == "__main__":
             embeddings,
             create_new_index = True
         )
-        print("\n Embeddings stored with HNSW indexing!\n")
+        print("\nEmbeddings stored with HNSW indexing!\n")
     except Exception as e:
         print(f"x Error: {e}\n")
         exit(1)
