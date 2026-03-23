@@ -1,0 +1,559 @@
+<!-- app/templates/index.html -->
+
+<!DOCTYPE html>
+<html ng-app="medicalRAGApp">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Medical RAG Chatbot</title>
+    
+    <!-- AngularJS -->
+    <script src="https://ajax.googleapis.com/ajax/libs/angularjs/1.8.2/angular.min.js"></script>
+    
+    <!-- Bootstrap CSS -->
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.1.3/dist/css/bootstrap.min.css" rel="stylesheet">
+    
+    <!-- Font Awesome -->
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css">
+    
+    <style>
+        body {
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            min-height: 100vh;
+        }
+        
+        .chat-container {
+            max-width: 1200px;
+            margin: 20px auto;
+            background: white;
+            border-radius: 15px;
+            box-shadow: 0 10px 40px rgba(0,0,0,0.2);
+            overflow: hidden;
+        }
+        
+        .chat-header {
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+            padding: 20px;
+            text-align: center;
+        }
+        
+        .chat-header h1 {
+            margin: 0;
+            font-size: 28px;
+            font-weight: 600;
+        }
+        
+        .chat-header p {
+            margin: 5px 0 0 0;
+            opacity: 0.9;
+            font-size: 14px;
+        }
+        
+        .chat-body {
+            display: flex;
+            height: 600px;
+        }
+        
+        .sidebar {
+            width: 300px;
+            background: #f8f9fa;
+            border-right: 1px solid #dee2e6;
+            padding: 20px;
+            overflow-y: auto;
+        }
+        
+        .sidebar h5 {
+            font-size: 16px;
+            font-weight: 600;
+            margin-bottom: 15px;
+            color: #495057;
+        }
+        
+        .filter-section {
+            margin-bottom: 25px;
+        }
+        
+        .category-btn {
+            width: 100%;
+            margin-bottom: 8px;
+            text-align: left;
+            border-radius: 8px;
+            transition: all 0.2s;
+        }
+        
+        .category-btn:hover {
+            transform: translateX(5px);
+        }
+        
+        .category-btn.active {
+            background: #667eea;
+            border-color: #667eea;
+            color: white;
+        }
+        
+        .messages-container {
+            flex: 1;
+            display: flex;
+            flex-direction: column;
+        }
+        
+        .messages {
+            flex: 1;
+            padding: 20px;
+            overflow-y: auto;
+            background: #ffffff;
+        }
+        
+        .message {
+            margin-bottom: 20px;
+            animation: fadeIn 0.3s;
+        }
+        
+        @keyframes fadeIn {
+            from { opacity: 0; transform: translateY(10px); }
+            to { opacity: 1; transform: translateY(0); }
+        }
+        
+        .message.user {
+            text-align: right;
+        }
+        
+        .message-bubble {
+            display: inline-block;
+            max-width: 70%;
+            padding: 15px 20px;
+            border-radius: 18px;
+            word-wrap: break-word;
+        }
+        
+        .message.user .message-bubble {
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+            border-bottom-right-radius: 4px;
+        }
+        
+        .message.assistant .message-bubble {
+            background: #f1f3f5;
+            color: #212529;
+            border-bottom-left-radius: 4px;
+        }
+        
+        .message-icon {
+            display: inline-block;
+            width: 35px;
+            height: 35px;
+            border-radius: 50%;
+            text-align: center;
+            line-height: 35px;
+            margin: 0 10px;
+            font-size: 16px;
+        }
+        
+        .message.user .message-icon {
+            background: #667eea;
+            color: white;
+        }
+        
+        .message.assistant .message-icon {
+            background: #28a745;
+            color: white;
+        }
+        
+        .sources {
+            margin-top: 10px;
+            font-size: 12px;
+            opacity: 0.8;
+        }
+        
+        .source-badge {
+            display: inline-block;
+            padding: 3px 8px;
+            margin: 3px;
+            background: #e9ecef;
+            border-radius: 12px;
+            font-size: 11px;
+        }
+        
+        .input-container {
+            padding: 20px;
+            background: #f8f9fa;
+            border-top: 1px solid #dee2e6;
+        }
+        
+        .input-group {
+            position: relative;
+        }
+        
+        .form-control {
+            border-radius: 25px;
+            padding: 15px 100px 15px 20px;
+            border: 2px solid #dee2e6;
+            font-size: 14px;
+        }
+        
+        .form-control:focus {
+            border-color: #667eea;
+            box-shadow: 0 0 0 0.2rem rgba(102, 126, 234, 0.25);
+        }
+        
+        .send-btn {
+            position: absolute;
+            right: 5px;
+            top: 5px;
+            border-radius: 20px;
+            padding: 10px 25px;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            border: none;
+            color: white;
+            font-weight: 600;
+            transition: all 0.2s;
+        }
+        
+        .send-btn:hover {
+            transform: scale(1.05);
+            box-shadow: 0 5px 15px rgba(102, 126, 234, 0.4);
+        }
+        
+        .send-btn:disabled {
+            opacity: 0.6;
+            cursor: not-allowed;
+        }
+        
+        .loading {
+            text-align: center;
+            padding: 20px;
+            color: #6c757d;
+        }
+        
+        .spinner {
+            display: inline-block;
+            width: 20px;
+            height: 20px;
+            border: 3px solid rgba(102, 126, 234, 0.3);
+            border-radius: 50%;
+            border-top-color: #667eea;
+            animation: spin 0.8s linear infinite;
+        }
+        
+        @keyframes spin {
+            to { transform: rotate(360deg); }
+        }
+        
+        .clear-btn {
+            width: 100%;
+            border-radius: 8px;
+            margin-top: 15px;
+        }
+        
+        .stats {
+            margin-top: 20px;
+            padding: 15px;
+            background: white;
+            border-radius: 8px;
+            box-shadow: 0 2px 8px rgba(0,0,0,0.1);
+        }
+        
+        .stat-item {
+            display: flex;
+            justify-content: space-between;
+            margin-bottom: 8px;
+            font-size: 13px;
+        }
+        
+        .welcome-message {
+            text-align: center;
+            padding: 40px;
+            color: #6c757d;
+        }
+        
+        .welcome-message i {
+            font-size: 64px;
+            margin-bottom: 20px;
+            color: #667eea;
+        }
+        
+        .example-queries {
+            margin-top: 20px;
+        }
+        
+        .example-query {
+            display: inline-block;
+            padding: 8px 15px;
+            margin: 5px;
+            background: #e9ecef;
+            border-radius: 15px;
+            cursor: pointer;
+            font-size: 13px;
+            transition: all 0.2s;
+        }
+        
+        .example-query:hover {
+            background: #667eea;
+            color: white;
+            transform: translateY(-2px);
+        }
+    </style>
+</head>
+<body ng-controller="ChatController">
+    <div class="chat-container">
+        <!-- Header -->
+        <div class="chat-header">
+            <h1><i class="fas fa-notes-medical"></i> Medical RAG Chatbot</h1>
+            <p>Ask medical questions and get answers from our knowledge base</p>
+        </div>
+        
+        <!-- Body -->
+        <div class="chat-body">
+            <!-- Sidebar -->
+            <div class="sidebar">
+                <div class="filter-section">
+                    <h5><i class="fas fa-filter"></i> Filter by Category</h5>
+                    <button 
+                        class="btn btn-sm category-btn"
+                        ng-class="{'active': !selectedCategory, 'btn-outline-primary': selectedCategory}"
+                        ng-click="clearFilter()">
+                        <i class="fas fa-list"></i> All Categories
+                    </button>
+                    <button 
+                        class="btn btn-sm category-btn"
+                        ng-class="{'active': selectedCategory === category, 'btn-outline-primary': selectedCategory !== category}"
+                        ng-repeat="category in categories"
+                        ng-click="selectCategory(category)">
+                        <i class="fas fa-heartbeat"></i> {{category | capitalize}}
+                    </button>
+                </div>
+                
+                <div class="filter-section">
+                    <h5><i class="fas fa-sliders-h"></i> Settings</h5>
+                    <div class="mb-3">
+                        <label class="form-label" style="font-size: 13px;">Documents to retrieve: {{topK}}</label>
+                        <input type="range" class="form-range" min="3" max="10" ng-model="topK">
+                    </div>
+                    <div class="mb-3">
+                        <label class="form-label" style="font-size: 13px;">Temperature: {{temperature}}</label>
+                        <input type="range" class="form-range" min="0" max="1" step="0.1" ng-model="temperature">
+                    </div>
+                    <button class="btn btn-outline-danger clear-btn" ng-click="clearChat()">
+                        <i class="fas fa-trash"></i> Clear Chat
+                    </button>
+                </div>
+                
+                <div class="stats" ng-if="messages.length > 0">
+                    <h5 style="font-size: 14px; margin-bottom: 10px;"><i class="fas fa-chart-bar"></i> Statistics</h5>
+                    <div class="stat-item">
+                        <span>Messages:</span>
+                        <strong>{{messages.length}}</strong>
+                    </div>
+                    <div class="stat-item">
+                        <span>Last Query Time:</span>
+                        <strong>{{lastQueryTime}}s</strong>
+                    </div>
+                </div>
+            </div>
+            
+            <!-- Messages -->
+            <div class="messages-container">
+                <div class="messages" id="messagesContainer">
+                    <!-- Welcome Message -->
+                    <div class="welcome-message" ng-if="messages.length === 0">
+                        <i class="fas fa-comments"></i>
+                        <h4>Welcome to Medical RAG Chatbot!</h4>
+                        <p>Ask any medical question to get started</p>
+                        <div class="example-queries">
+                            <div class="example-query" ng-click="askExample('What is diabetes?')">
+                                What is diabetes?
+                            </div>
+                            <div class="example-query" ng-click="askExample('Symptoms of heart disease')">
+                                Symptoms of heart disease
+                            </div>
+                            <div class="example-query" ng-click="askExample('How to treat hypertension?')">
+                                How to treat hypertension?
+                            </div>
+                        </div>
+                    </div>
+                    
+                    <!-- Chat Messages -->
+                    <div class="message {{message.role}}" ng-repeat="message in messages">
+                        <span class="message-icon" ng-if="message.role === 'user'">
+                            <i class="fas fa-user"></i>
+                        </span>
+                        <span class="message-icon" ng-if="message.role === 'assistant'">
+                            <i class="fas fa-robot"></i>
+                        </span>
+                        <div class="message-bubble">
+                            <div>{{message.content}}</div>
+                            <div class="sources" ng-if="message.sources && message.sources.length > 0">
+                                <i class="fas fa-book-medical"></i> Sources:
+                                <span class="source-badge" ng-repeat="source in message.sources">
+                                    {{source.category}} ({{source.score | number:2}})
+                                </span>
+                            </div>
+                        </div>
+                    </div>
+                    
+                    <!-- Loading -->
+                    <div class="loading" ng-if="loading">
+                        <div class="spinner"></div>
+                        <div style="margin-top: 10px;">Generating response...</div>
+                    </div>
+                </div>
+                
+                <!-- Input -->
+                <div class="input-container">
+                    <div class="input-group">
+                        <input 
+                            type="text" 
+                            class="form-control" 
+                            placeholder="Ask a medical question..."
+                            ng-model="userInput"
+                            ng-keypress="handleKeyPress($event)"
+                            ng-disabled="loading">
+                        <button 
+                            class="send-btn"
+                            ng-click="sendMessage()"
+                            ng-disabled="loading || !userInput">
+                            <i class="fas fa-paper-plane"></i> Send
+                        </button>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+    
+    <script>
+        // AngularJS Application
+        var app = angular.module('medicalRAGApp', []);
+        
+        app.controller('ChatController', function($scope, $http, $timeout) {
+            // Initialize
+            $scope.messages = [];
+            $scope.userInput = '';
+            $scope.loading = false;
+            $scope.categories = [];
+            $scope.selectedCategory = null;
+            $scope.topK = 5;
+            $scope.temperature = 0.3;
+            $scope.sessionId = 'session_' + Date.now();
+            $scope.lastQueryTime = 0;
+            
+            // Load categories
+            $http.get('/api/categories').then(function(response) {
+                if (response.data.success) {
+                    $scope.categories = response.data.categories;
+                }
+            });
+            
+            // Send message
+            $scope.sendMessage = function() {
+                if (!$scope.userInput || $scope.loading) return;
+                
+                var question = $scope.userInput;
+                $scope.userInput = '';
+                
+                // Add user message
+                $scope.messages.push({
+                    role: 'user',
+                    content: question
+                });
+                
+                $scope.scrollToBottom();
+                $scope.loading = true;
+                
+                var startTime = Date.now();
+                
+                // Prepare request
+                var requestData = {
+                    session_id: $scope.sessionId,
+                    question: question,
+                    top_k: parseInt($scope.topK),
+                    temperature: parseFloat($scope.temperature)
+                };
+                
+                if ($scope.selectedCategory) {
+                    requestData.filters = {
+                        category: $scope.selectedCategory
+                    };
+                }
+                
+                // Call API
+                $http.post('/api/chat', requestData).then(
+                    function(response) {
+                        $scope.loading = false;
+                        $scope.lastQueryTime = ((Date.now() - startTime) / 1000).toFixed(2);
+                        
+                        if (response.data.success) {
+                            // Add assistant message
+                            $scope.messages.push({
+                                role: 'assistant',
+                                content: response.data.answer,
+                                sources: response.data.sources
+                            });
+                            
+                            $scope.scrollToBottom();
+                        } else {
+                            alert('Error: ' + response.data.error);
+                        }
+                    },
+                    function(error) {
+                        $scope.loading = false;
+                        alert('Request failed: ' + (error.data?.error || 'Unknown error'));
+                    }
+                );
+            };
+            
+            // Handle Enter key
+            $scope.handleKeyPress = function(event) {
+                if (event.which === 13) {
+                    $scope.sendMessage();
+                }
+            };
+            
+            // Select category
+            $scope.selectCategory = function(category) {
+                $scope.selectedCategory = category;
+            };
+            
+            // Clear filter
+            $scope.clearFilter = function() {
+                $scope.selectedCategory = null;
+            };
+            
+            // Clear chat
+            $scope.clearChat = function() {
+                if (confirm('Clear all messages?')) {
+                    $scope.messages = [];
+                    $scope.sessionId = 'session_' + Date.now();
+                    
+                    // Call API to clear history
+                    $http.post('/api/chat/clear', {
+                        session_id: $scope.sessionId
+                    });
+                }
+            };
+            
+            // Ask example question
+            $scope.askExample = function(question) {
+                $scope.userInput = question;
+                $scope.sendMessage();
+            };
+            
+            // Scroll to bottom
+            $scope.scrollToBottom = function() {
+                $timeout(function() {
+                    var container = document.getElementById('messagesContainer');
+                    container.scrollTop = container.scrollHeight;
+                }, 100);
+            };
+        });
+        
+        // Capitalize filter
+        app.filter('capitalize', function() {
+            return function(input) {
+                return input ? input.charAt(0).toUpperCase() + input.slice(1) : '';
+            };
+        });
+    </script>
+</body>
+</html>

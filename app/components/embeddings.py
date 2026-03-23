@@ -70,7 +70,9 @@ class Medical_Embeddings:
         try:
             # Generate embedding for the text
             embedding = self.embeddings.embed_query(chunk.page_content)
-            return embedding, chunk.metadata
+            metadata = chunk.metadata.copy()
+            metadata['text'] = chunk.page_content  # Store text so it can be retrieved later
+            return embedding, metadata
         
         except Exception as e:
             self.logger.log_error(e, context = f"Embedding single chunk: {chunk.page_content[:50]}...")
