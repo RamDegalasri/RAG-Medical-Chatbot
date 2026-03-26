@@ -280,36 +280,3 @@ jobs:
         echo "========================================="
         echo "  🚀 Deployment Complete!"
         echo "========================================="
-```
-
----
-
-## **GitHub Secrets Required**
-
-Add these in: **Repository → Settings → Secrets and variables → Actions**
-```
-Required Secrets:
-
-AWS_ACCESS_KEY_ID
-Value: AKIA... (from CI/CD IAM user)
-
-AWS_SECRET_ACCESS_KEY
-Value: [secret key from CI/CD IAM user]
-
-AWS_REGION
-Value: us-east-1
-
-AWS_ACCOUNT_ID
-Value: 739680088337
-
-ECR_REPOSITORY
-Value: medical-rag-chatbot
-
-ECS_CLUSTER
-Value: medical-rag-cluster
-
-ECS_SERVICE
-Value: medical-rag-service
-
-ECS_TASK_DEFINITION
-Value: medical-rag-task
