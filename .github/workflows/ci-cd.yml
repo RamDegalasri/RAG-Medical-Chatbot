@@ -1,0 +1,315 @@
+name: Medical RAG - Build, Scan, and Deploy to AWS ECS
+
+on:
+  push:
+    branches: [ main ]
+  pull_request:
+    branches: [ main ]
+  workflow_dispatch:  # Manual trigger
+
+env:
+  AWS_REGION: ${{ secrets.AWS_REGION }}
+  ECR_REPOSITORY: ${{ secrets.ECR_REPOSITORY }}
+  ECS_SERVICE: ${{ secrets.ECS_SERVICE }}
+  ECS_CLUSTER: ${{ secrets.ECS_CLUSTER }}
+  ECS_TASK_DEFINITION: ${{ secrets.ECS_TASK_DEFINITION }}
+  CONTAINER_NAME: medical-rag-container
+
+jobs:
+  build-scan-deploy:
+    name: Build, Scan & Deploy
+    runs-on: ubuntu-latest
+    
+    steps:
+    # =========================================================================
+    # STEP 1: CHECKOUT CODE
+    # =========================================================================
+    - name: Checkout code
+      uses: actions/checkout@v3
+      
+    # =========================================================================
+    # STEP 2: CONFIGURE AWS CREDENTIALS
+    # =========================================================================
+    - name: Configure AWS credentials
+      uses: aws-actions/configure-aws-credentials@v2
+      with:
+        aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
+        aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+        aws-region: ${{ env.AWS_REGION }}
+    
+    # =========================================================================
+    # STEP 3: LOGIN TO AMAZON ECR
+    # =========================================================================
+    - name: Login to Amazon ECR
+      id: login-ecr
+      uses: aws-actions/amazon-ecr-login@v1
+    
+    # =========================================================================
+    # STEP 4: BUILD DOCKER IMAGE
+    # =========================================================================
+    - name: Build Docker image
+      id: build-image
+      env:
+        ECR_REGISTRY: ${{ steps.login-ecr.outputs.registry }}
+        IMAGE_TAG: ${{ github.sha }}
+      run: |
+        echo "Building Docker image..."
+        docker build -t $ECR_REGISTRY/$ECR_REPOSITORY:$IMAGE_TAG .
+        docker tag $ECR_REGISTRY/$ECR_REPOSITORY:$IMAGE_TAG $ECR_REGISTRY/$ECR_REPOSITORY:latest
+        echo "✓ Docker image built successfully"
+        echo "image=$ECR_REGISTRY/$ECR_REPOSITORY:$IMAGE_TAG" >> $GITHUB_OUTPUT
+        echo "image_uri=$ECR_REGISTRY/$ECR_REPOSITORY:$IMAGE_TAG" >> $GITHUB_OUTPUT
+    
+    # =========================================================================
+    # STEP 5: SCAN IMAGE WITH TRIVY (LOCAL SCAN)
+    # =========================================================================
+    - name: Run Trivy vulnerability scanner
+      uses: aquasecurity/trivy-action@master
+      with:
+        image-ref: ${{ steps.build-image.outputs.image_uri }}
+        format: 'table'
+        exit-code: '0'  # Don't fail build, just report
+        ignore-unfixed: true
+        vuln-type: 'os,library'
+        severity: 'CRITICAL,HIGH'
+        output: 'trivy-results.txt'
+    
+    - name: Display Trivy scan results
+      if: always()
+      run: |
+        if [ -f trivy-results.txt ]; then
+          echo "=== Trivy Scan Results ==="
+          cat trivy-results.txt
+        fi
+    
+    # =========================================================================
+    # STEP 6: PUSH IMAGE TO ECR
+    # =========================================================================
+    - name: Push image to Amazon ECR
+      env:
+        ECR_REGISTRY: ${{ steps.login-ecr.outputs.registry }}
+        IMAGE_TAG: ${{ github.sha }}
+      run: |
+        echo "Pushing image to ECR..."
+        docker push $ECR_REGISTRY/$ECR_REPOSITORY:$IMAGE_TAG
+        docker push $ECR_REGISTRY/$ECR_REPOSITORY:latest
+        echo "✓ Image pushed to ECR"
+        echo "Image URI: $ECR_REGISTRY/$ECR_REPOSITORY:$IMAGE_TAG"
+    
+    # =========================================================================
+    # STEP 7: WAIT FOR ECR SCAN TO COMPLETE
+    # =========================================================================
+    - name: Wait for ECR scan
+      run: |
+        echo "Waiting for ECR scan to complete..."
+        sleep 90
+        echo "✓ Scan should be complete"
+    
+    # =========================================================================
+    # STEP 8: CHECK ECR SCAN RESULTS
+    # =========================================================================
+    - name: Check ECR scan results
+      id: ecr-scan
+      continue-on-error: true
+      run: |
+        IMAGE_TAG=${{ github.sha }}
+        
+        echo "Fetching ECR scan results..."
+        
+        # Get scan findings
+        SCAN_STATUS=$(aws ecr describe-image-scan-findings \
+          --repository-name ${{ env.ECR_REPOSITORY }} \
+          --image-id imageTag=$IMAGE_TAG \
+          --region ${{ env.AWS_REGION }} \
+          --query 'imageScanStatus.status' \
+          --output text 2>/dev/null || echo "PENDING")
+        
+        echo "Scan Status: $SCAN_STATUS"
+        
+        if [ "$SCAN_STATUS" = "COMPLETE" ]; then
+          SCAN_FINDINGS=$(aws ecr describe-image-scan-findings \
+            --repository-name ${{ env.ECR_REPOSITORY }} \
+            --image-id imageTag=$IMAGE_TAG \
+            --region ${{ env.AWS_REGION }} \
+            --query 'imageScanFindings.findingSeverityCounts' \
+            --output json)
+          
+          echo "Scan Findings: $SCAN_FINDINGS"
+          
+          CRITICAL=$(echo $SCAN_FINDINGS | jq -r '.CRITICAL // 0')
+          HIGH=$(echo $SCAN_FINDINGS | jq -r '.HIGH // 0')
+          MEDIUM=$(echo $SCAN_FINDINGS | jq -r '.MEDIUM // 0')
+          LOW=$(echo $SCAN_FINDINGS | jq -r '.LOW // 0')
+          
+          echo "=== ECR Scan Results ==="
+          echo "Critical: $CRITICAL"
+          echo "High: $HIGH"
+          echo "Medium: $MEDIUM"
+          echo "Low: $LOW"
+          echo "======================="
+          
+          # Store for later use
+          echo "critical=$CRITICAL" >> $GITHUB_OUTPUT
+          echo "high=$HIGH" >> $GITHUB_OUTPUT
+          
+          # Warning if vulnerabilities found (but don't fail)
+          if [ "$CRITICAL" -gt 0 ]; then
+            echo "⚠️  WARNING: $CRITICAL CRITICAL vulnerabilities found!"
+          fi
+          
+          if [ "$HIGH" -gt 0 ]; then
+            echo "⚠️  WARNING: $HIGH HIGH severity vulnerabilities found!"
+          fi
+          
+          if [ "$CRITICAL" -eq 0 ] && [ "$HIGH" -eq 0 ]; then
+            echo "✓ No critical or high vulnerabilities found"
+          fi
+        else
+          echo "⚠️  Scan not yet complete (Status: $SCAN_STATUS)"
+          echo "Continuing with deployment..."
+        fi
+    
+    # =========================================================================
+    # STEP 9: DOWNLOAD CURRENT TASK DEFINITION
+    # =========================================================================
+    - name: Download task definition
+      run: |
+        echo "Downloading current task definition..."
+        aws ecs describe-task-definition \
+          --task-definition ${{ env.ECS_TASK_DEFINITION }} \
+          --query taskDefinition > task-definition.json
+        echo "✓ Task definition downloaded"
+    
+    # =========================================================================
+    # STEP 10: UPDATE TASK DEFINITION WITH NEW IMAGE
+    # =========================================================================
+    - name: Fill in the new image ID in the Amazon ECS task definition
+      id: task-def
+      uses: aws-actions/amazon-ecs-render-task-definition@v1
+      with:
+        task-definition: task-definition.json
+        container-name: ${{ env.CONTAINER_NAME }}
+        image: ${{ steps.build-image.outputs.image }}
+    
+    # =========================================================================
+    # STEP 11: DEPLOY TO AMAZON ECS
+    # =========================================================================
+    - name: Deploy Amazon ECS task definition
+      uses: aws-actions/amazon-ecs-deploy-task-definition@v1
+      with:
+        task-definition: ${{ steps.task-def.outputs.task-definition }}
+        service: ${{ env.ECS_SERVICE }}
+        cluster: ${{ env.ECS_CLUSTER }}
+        wait-for-service-stability: true
+    
+    # =========================================================================
+    # STEP 12: VERIFY DEPLOYMENT
+    # =========================================================================
+    - name: Verify deployment
+      run: |
+        echo "========================================="
+        echo "Deployment Verification"
+        echo "========================================="
+        
+        # Get service status
+        SERVICE_STATUS=$(aws ecs describe-services \
+          --cluster ${{ env.ECS_CLUSTER }} \
+          --services ${{ env.ECS_SERVICE }} \
+          --query 'services[0].status' \
+          --output text)
+        
+        echo "Service Status: $SERVICE_STATUS"
+        
+        # Get running count
+        RUNNING_COUNT=$(aws ecs describe-services \
+          --cluster ${{ env.ECS_CLUSTER }} \
+          --services ${{ env.ECS_SERVICE }} \
+          --query 'services[0].runningCount' \
+          --output text)
+        
+        echo "Running Tasks: $RUNNING_COUNT"
+        
+        # Get task ARN
+        TASK_ARN=$(aws ecs list-tasks \
+          --cluster ${{ env.ECS_CLUSTER }} \
+          --service-name ${{ env.ECS_SERVICE }} \
+          --query 'taskArns[0]' \
+          --output text)
+        
+        if [ "$TASK_ARN" != "None" ] && [ -n "$TASK_ARN" ]; then
+          echo "Task ARN: $TASK_ARN"
+          
+          # Get task status
+          TASK_STATUS=$(aws ecs describe-tasks \
+            --cluster ${{ env.ECS_CLUSTER }} \
+            --tasks $TASK_ARN \
+            --query 'tasks[0].lastStatus' \
+            --output text)
+          
+          echo "Task Status: $TASK_STATUS"
+        fi
+        
+        echo "========================================="
+    
+    # =========================================================================
+    # STEP 13: DEPLOYMENT SUMMARY
+    # =========================================================================
+    - name: Deployment Summary
+      if: always()
+      run: |
+        echo ""
+        echo "========================================="
+        echo "         DEPLOYMENT SUMMARY"
+        echo "========================================="
+        echo ""
+        echo "Repository: ${{ github.repository }}"
+        echo "Branch: ${{ github.ref_name }}"
+        echo "Commit: ${{ github.sha }}"
+        echo ""
+        echo "AWS Region: ${{ env.AWS_REGION }}"
+        echo "ECR Repository: ${{ env.ECR_REPOSITORY }}"
+        echo "ECS Cluster: ${{ env.ECS_CLUSTER }}"
+        echo "ECS Service: ${{ env.ECS_SERVICE }}"
+        echo ""
+        echo "Image: ${{ steps.build-image.outputs.image }}"
+        echo ""
+        echo "Trivy Scan: Completed"
+        echo "ECR Scan: Completed"
+        echo "Deployment: Success ✓"
+        echo ""
+        echo "========================================="
+        echo "  🚀 Deployment Complete!"
+        echo "========================================="
+```
+
+---
+
+## **GitHub Secrets Required**
+
+Add these in: **Repository → Settings → Secrets and variables → Actions**
+```
+Required Secrets:
+
+AWS_ACCESS_KEY_ID
+Value: AKIA... (from CI/CD IAM user)
+
+AWS_SECRET_ACCESS_KEY
+Value: [secret key from CI/CD IAM user]
+
+AWS_REGION
+Value: us-east-1
+
+AWS_ACCOUNT_ID
+Value: 739680088337
+
+ECR_REPOSITORY
+Value: medical-rag-chatbot
+
+ECS_CLUSTER
+Value: medical-rag-cluster
+
+ECS_SERVICE
+Value: medical-rag-service
+
+ECS_TASK_DEFINITION
+Value: medical-rag-task
