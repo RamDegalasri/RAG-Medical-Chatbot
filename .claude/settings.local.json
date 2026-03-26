@@ -1,7 +1,8 @@
 {
   "permissions": {
     "allow": [
-      "Bash(./venv/bin/python -c \"import ragas.metrics.collections; print\\([x for x in dir\\(ragas.metrics.collections\\) if not x.startswith\\(''_''\\)]\\)\")"
+      "Bash(./venv/bin/python -c \"import ragas.metrics.collections; print\\([x for x in dir\\(ragas.metrics.collections\\) if not x.startswith\\(''_''\\)]\\)\")",
+      "Bash(aws configure:*)"
     ]
   }
 }
