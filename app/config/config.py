@@ -31,6 +31,5 @@ class Config:
 
     # Data Paths
     DATAPATH = "data/"
-    DB_FAISS_PATH = "vectorstore/DBpinecone"
     CHUNK_SIZE = 500
     CHUNK_OVERLAP = 50

@@ -1,6 +1,6 @@
 # Medical Chatbot with RAG Integration
 
-A production-ready Medical Question-Answering system using Retrieval-Augmented Generation (RAG) with AWS Bedrock Gemma 3 27B, OpenAI embeddings, and Pinecone vector database.
+A production-ready Medical Question-Answering system using Retrieval-Augmented Generation (RAG) with AWS Bedrock Gemma 3 27B, AWS Bedrock Cohere embeddings, and Pinecone vector database.
 
 ---
 
@@ -92,7 +92,7 @@ A Medical RAG (Retrieval-Augmented Generation) chatbot that answers medical ques
     ↓         ↓
 ┌─────────┐  ┌──────────────────────────────────────────────┐
 │EMBEDDING│  │       VECTOR DATABASE                        │
-│(OpenAI) │  │       (Pinecone + HNSW)                      │
+│(Bedrock)│  │       (Pinecone + HNSW)                      │
 │         │→ │  - Stores 7,590 medical document vectors     │
 │Query    │  │  - HNSW semantic search                      │
 │→Vector  │  │  - Metadata filtering                        │
@@ -127,7 +127,7 @@ A Medical RAG (Retrieval-Augmented Generation) chatbot that answers medical ques
 |-----------|------------|---------|
 | **Vector Database** | Pinecone | Cloud vector storage |
 | **Search Algorithm** | HNSW | Fast semantic search |
-| **Embeddings** | OpenAI text-embedding-3-small | Convert text to vectors (1536 dims) |
+| **Embeddings** | AWS Bedrock cohere.embed-english-v3 | Convert text to vectors (1024 dims) |
 | **LLM** | AWS Bedrock Gemma 3 27B | Answer generation |
 | **Backend** | Flask | REST API server |
 | **Frontend** | AngularJS | User interface |
@@ -137,8 +137,8 @@ A Medical RAG (Retrieval-Augmented Generation) chatbot that answers medical ques
 ### Python Libraries
 ```
 langchain==0.1.0
-langchain-openai==0.0.5
 langchain-community==0.0.20
+langchain-aws==0.1.0
 pinecone-client==3.0.0
 boto3==1.34.0
 flask==3.0.0
@@ -155,8 +155,7 @@ numpy==1.26.0
 ### Prerequisites
 
 - Python 3.8+
-- OpenAI API key (for embeddings)
-- AWS Bedrock access (for Gemma 3 27B)
+- AWS Bedrock access (for Gemma 3 27B and Cohere embeddings)
 - Pinecone account (free tier available)
 
 ### Step 1: Clone Repository
@@ -174,14 +173,12 @@ pip install -r requirements.txt
 
 Create `.env` file:
 ```bash
-# OpenAI (for embeddings)
-OPENAI_API_KEY=sk-your-openai-key-here
-
-# AWS Bedrock (for Gemma 3 27B LLM)
+# AWS Bedrock (for Gemma 3 27B LLM and Cohere embeddings)
 AWS_ACCESS_KEY_ID=AKIA...
 AWS_SECRET_ACCESS_KEY=your-secret-key
 AWS_REGION=us-east-1
 BEDROCK_MODEL_ID=google.gemma-3-27b-v1
+BEDROCK_EMBEDDING_MODEL_ID=cohere.embed-english-v3
 
 # Pinecone (for vector database)
 PINECONE_API_KEY=your-pinecone-key
@@ -205,7 +202,7 @@ This will:
 - Load PDF (759 pages)
 - Extract and clean text
 - Create 7,590 chunks
-- Generate embeddings ($0.01 cost)
+- Generate embeddings via AWS Bedrock Cohere
 - Store in Pinecone with HNSW indexing
 - Takes ~15-20 minutes
 
@@ -234,14 +231,13 @@ Access at: `http://localhost:5000`
 
 | Attribute | Purpose | Example Value |
 |-----------|---------|---------------|
-| `OPENAI_API_KEY` | OpenAI API authentication | `sk-...` |
 | `AWS_ACCESS_KEY_ID` | AWS Bedrock authentication | `AKIA...` |
 | `AWS_SECRET_ACCESS_KEY` | AWS Bedrock secret | `secret-key` |
 | `AWS_REGION` | AWS region for Bedrock | `us-east-1` |
 | `BEDROCK_MODEL_ID` | Gemma 3 27B model identifier | `google.gemma-3-27b-v1` |
+| `BEDROCK_EMBEDDING_MODEL_ID` | Cohere embedding model identifier | `cohere.embed-english-v3` |
 | `PINECONE_API_KEY` | Pinecone authentication | `your-key` |
 | `PINECONE_INDEX_NAME` | Vector database index name | `medical-rag-index` |
-| `OPENAI_EMBEDDING_MODEL` | Embedding model name | `text-embedding-3-small` |
 | `CHUNK_SIZE` | Text chunk size | `500` |
 | `CHUNK_OVERLAP` | Overlap between chunks | `50` |
 | `DATAPATH` | Path to PDF data | `data/` |
@@ -421,20 +417,20 @@ chunks = loader.process_all_pdfs()
 
 **Location:** `app/components/embeddings.py`
 
-**What it does:** Converts text chunks into vector embeddings using OpenAI
+**What it does:** Converts text chunks into vector embeddings using AWS Bedrock Cohere
 
 #### Class: `MedicalEmbeddings`
 
-**What this class does:** Handles OpenAI embedding generation for medical text
+**What this class does:** Handles AWS Bedrock Cohere embedding generation for medical text
 
 **Constructor:**
 ```python
-def __init__(self, model_name: str = "text-embedding-3-small")
+def __init__(self, model_name: str = "cohere.embed-english-v3")
 ```
-**What it does:** Initializes OpenAI embeddings client
+**What it does:** Initializes AWS Bedrock Cohere embeddings client
 
 **Parameters:**
-- `model_name`: OpenAI embedding model to use
+- `model_name`: AWS Bedrock embedding model to use
 
 **Methods:**
 
@@ -451,7 +447,7 @@ def __init__(self, model_name: str = "text-embedding-3-small")
 ```python
 embedder = MedicalEmbeddings()
 embedding, metadata = embedder.embed_single_chunk(chunk)
-# embedding: [0.234, -0.123, 0.567, ...] (1536 numbers)
+# embedding: [0.234, -0.123, 0.567, ...] (1024 numbers)
 # metadata: {"category": "endocrine", "page": 100}
 ```
 
@@ -475,7 +471,6 @@ embedding, metadata = embedder.embed_single_chunk(chunk)
 embeddings = embedder.embed_chunks(chunks)
 # Input: 7,590 chunks
 # Output: 7,590 (vector, metadata) tuples
-# Cost: ~$0.01
 # Time: ~2-5 minutes
 ```
 
@@ -486,12 +481,12 @@ embeddings = embedder.embed_chunks(chunks)
 **Parameters:**
 - `query`: User's search query string
 
-**Returns:** Embedding vector (1536 dimensions)
+**Returns:** Embedding vector (1024 dimensions)
 
 **Example:**
 ```python
 query_embedding = embedder.embed_query("What is diabetes?")
-# Returns: [0.245, -0.115, 0.573, ...]
+# Returns: [0.245, -0.115, 0.573, ...] (1024 numbers)
 ```
 
 ##### Function: `estimate_embedding_cost(chunks)`
@@ -509,7 +504,7 @@ cost_info = embedder.estimate_embedding_cost(chunks)
 # {
 #     "total_chunks": 7590,
 #     "estimated_tokens": 506000,
-#     "estimated_total_cost": "$0.0101"
+#     "estimated_total_cost": "varies by AWS Bedrock pricing"
 # }
 ```
 
@@ -519,7 +514,7 @@ cost_info = embedder.estimate_embedding_cost(chunks)
 
 **Constructor:**
 ```python
-def __init__(self, model_name: str = "text-embedding-3-small")
+def __init__(self, model_name: str = "cohere.embed-english-v3")
 ```
 **What it does:** Creates embedding pipeline with specified model
 
@@ -573,7 +568,7 @@ def __init__(self)
 **What this function does:** Creates vector database index in Pinecone cloud
 
 **Parameters:**
-- `dimension`: Vector size (1536 for text-embedding-3-small)
+- `dimension`: Vector size (1024 for cohere.embed-english-v3)
 - `metric`: Similarity metric ("cosine" for semantic search)
 - `force_recreate`: Delete existing and create new (default: False)
 
@@ -588,7 +583,7 @@ def __init__(self)
 **Example:**
 ```python
 vectorstore = PineconeHNSWVectorStore()
-vectorstore.create_index(dimension=1536, metric="cosine")
+vectorstore.create_index(dimension=1024, metric="cosine")
 # Creates: "medical-rag-index" in Pinecone cloud
 ```
 
@@ -696,7 +691,7 @@ stats = vectorstore.get_index_stats()
 #     "vector_database": "Pinecone",
 #     "search_algorithm": "HNSW",
 #     "total_vectors": 7590,
-#     "dimension": 1536,
+#     "dimension": 1024,
 #     "status": "ready"
 # }
 ```
@@ -1405,13 +1400,12 @@ Click to automatically send
 │  STEP 4: QUERY EMBEDDING (embeddings.py)                    │
 ├─────────────────────────────────────────────────────────────┤
 │  - Takes query: "What is diabetes?"                         │
-│  - Calls OpenAI API                                         │
+│  - Calls AWS Bedrock Cohere API                             │
 │  - Converts to embedding vector                             │
 │                                                             │
 │  Output: [0.245, -0.115, 0.573, ..., 0.412]                │
-│          (1536 numbers)                                     │
+│          (1024 numbers)                                     │
 │                                                             │
-│  Cost: ~$0.000002 per query                                 │
 │  Time: ~0.1 seconds                                         │
 └────────────────────┬────────────────────────────────────────┘
                      ↓
@@ -1622,11 +1616,11 @@ Click to automatically send
 
 | Stage | Time | Cost |
 |-------|------|------|
-| Query Embedding | ~0.1s | $0.000002 |
+| Query Embedding (Bedrock Cohere) | ~0.1s | AWS Bedrock pricing |
 | Vector Search (HNSW) | ~0.05s | $0 (included) |
 | Context Building | ~0.01s | $0 |
-| LLM Generation | ~2-4s | ~$0.001 |
-| **Total** | **~2.5s** | **~$0.001** |
+| LLM Generation | ~2-4s | AWS Bedrock pricing |
+| **Total** | **~2.5s** | **varies by usage** |
 
 ### Accuracy Metrics
 
@@ -1776,15 +1770,18 @@ export PYTHONPATH=$PYTHONPATH:$(pwd)
 python app/application.py
 ```
 
-#### Issue 2: "OpenAI API key not found"
+#### Issue 2: "AWS Bedrock access denied for embeddings"
 
 **Solution:**
 ```bash
 # Check .env file exists
 cat .env
 
-# Verify OPENAI_API_KEY is set
-echo $OPENAI_API_KEY
+# Verify AWS credentials are set
+echo $AWS_ACCESS_KEY_ID
+
+# Ensure cohere.embed-english-v3 is enabled in AWS Bedrock console
+# Request model access if needed
 ```
 
 #### Issue 3: "Pinecone index not found"
