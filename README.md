@@ -19,11 +19,15 @@ A production-ready Medical Question-Answering system using Retrieval-Augmented G
    - [Module 6: LLM (llm.py)](#module-6-llm-llmpy)
    - [Module 7: Retriever (retriever.py)](#module-7-retriever-retrieverpy)
    - [Module 8: Application (application.py)](#module-8-application-applicationpy)
+   - [Module 9: AWS IAM Setup](#module-9-aws-iam-setup)
+   - [Module 10: Deployment](#module-10-deployment)
 6. [End-to-End RAG Workflow](#end-to-end-rag-workflow)
 7. [API Documentation](#api-documentation)
 8. [Usage Examples](#usage-examples)
 9. [Troubleshooting](#troubleshooting)
-10. [Contributing](#contributing)
+10. [AWS IAM, Roles & Policy Requirements](#aws-iam-roles--policy-requirements)
+11. [Application Deployment](#application-deployment)
+12. [Contributing](#contributing)
 
 ---
 
@@ -1353,6 +1357,484 @@ Click to automatically send
 
 ---
 
+### Module 9: AWS IAM Setup
+
+**Location:** `infra/iam/`
+
+**What it does:** Defines all AWS Identity and Access Management (IAM) resources required to run the Medical RAG Chatbot securely — including the IAM user for local development, the ECS task execution role, and the least-privilege policies for Bedrock and Pinecone access.
+
+---
+
+#### IAM User: `medical-rag-dev-user`
+
+**Purpose:** Used for local development and CI/CD pipelines. Holds programmatic access keys that are stored in `.env`.
+
+**How to create:**
+```bash
+aws iam create-user --user-name medical-rag-dev-user
+aws iam create-access-key --user-name medical-rag-dev-user
+# Save AccessKeyId and SecretAccessKey to .env
+```
+
+---
+
+#### IAM Role: `medical-rag-ecs-task-role`
+
+**Purpose:** Assumed by the ECS task container at runtime. Grants the application access to AWS Bedrock (LLM + embeddings) without embedding credentials in the image.
+
+**Trust Policy** (`infra/iam/ecs-trust-policy.json`):
+```json
+{
+  "Version": "2012-10-17",
+  "Statement": [
+    {
+      "Effect": "Allow",
+      "Principal": {
+        "Service": "ecs-tasks.amazonaws.com"
+      },
+      "Action": "sts:AssumeRole"
+    }
+  ]
+}
+```
+
+**How to create:**
+```bash
+aws iam create-role \
+  --role-name medical-rag-ecs-task-role \
+  --assume-role-policy-document file://infra/iam/ecs-trust-policy.json
+```
+
+---
+
+#### IAM Role: `medical-rag-ecs-execution-role`
+
+**Purpose:** Used by the ECS agent (not the container) to pull the Docker image from ECR and write logs to CloudWatch.
+
+**Attach the AWS managed policy:**
+```bash
+aws iam attach-role-policy \
+  --role-name medical-rag-ecs-execution-role \
+  --policy-arn arn:aws:iam::aws:policy/service-role/AmazonECSTaskExecutionRolePolicy
+```
+
+---
+
+#### IAM Policy: `medical-rag-bedrock-policy`
+
+**Purpose:** Grants least-privilege access to invoke only the required AWS Bedrock models — the Gemma 3 27B LLM and the Cohere embedding model.
+
+**Policy Document** (`infra/iam/bedrock-policy.json`):
+```json
+{
+  "Version": "2012-10-17",
+  "Statement": [
+    {
+      "Sid": "BedrockInvokeModels",
+      "Effect": "Allow",
+      "Action": [
+        "bedrock:InvokeModel",
+        "bedrock:InvokeModelWithResponseStream"
+      ],
+      "Resource": [
+        "arn:aws:bedrock:us-east-1::foundation-model/google.gemma-3-27b-v1",
+        "arn:aws:bedrock:us-east-1::foundation-model/cohere.embed-english-v3"
+      ]
+    }
+  ]
+}
+```
+
+**How to create and attach:**
+```bash
+# Create policy
+aws iam create-policy \
+  --policy-name medical-rag-bedrock-policy \
+  --policy-document file://infra/iam/bedrock-policy.json
+
+# Attach to ECS task role
+aws iam attach-role-policy \
+  --role-name medical-rag-ecs-task-role \
+  --policy-arn arn:aws:iam::<ACCOUNT_ID>:policy/medical-rag-bedrock-policy
+
+# Attach to dev user (for local development)
+aws iam attach-user-policy \
+  --user-name medical-rag-dev-user \
+  --policy-arn arn:aws:iam::<ACCOUNT_ID>:policy/medical-rag-bedrock-policy
+```
+
+---
+
+#### IAM Policy: `medical-rag-ecr-policy`
+
+**Purpose:** Allows the CI/CD pipeline user to push Docker images to ECR.
+
+**Policy Document** (`infra/iam/ecr-policy.json`):
+```json
+{
+  "Version": "2012-10-17",
+  "Statement": [
+    {
+      "Sid": "ECRAccess",
+      "Effect": "Allow",
+      "Action": [
+        "ecr:GetAuthorizationToken",
+        "ecr:BatchCheckLayerAvailability",
+        "ecr:GetDownloadUrlForLayer",
+        "ecr:BatchGetImage",
+        "ecr:InitiateLayerUpload",
+        "ecr:UploadLayerPart",
+        "ecr:CompleteLayerUpload",
+        "ecr:PutImage"
+      ],
+      "Resource": "*"
+    }
+  ]
+}
+```
+
+**How to create and attach:**
+```bash
+aws iam create-policy \
+  --policy-name medical-rag-ecr-policy \
+  --policy-document file://infra/iam/ecr-policy.json
+
+aws iam attach-user-policy \
+  --user-name medical-rag-dev-user \
+  --policy-arn arn:aws:iam::<ACCOUNT_ID>:policy/medical-rag-ecr-policy
+```
+
+---
+
+#### IAM Policy: `medical-rag-cloudwatch-policy`
+
+**Purpose:** Allows the ECS task to write structured application logs to CloudWatch Logs.
+
+**Policy Document** (`infra/iam/cloudwatch-policy.json`):
+```json
+{
+  "Version": "2012-10-17",
+  "Statement": [
+    {
+      "Sid": "CloudWatchLogs",
+      "Effect": "Allow",
+      "Action": [
+        "logs:CreateLogGroup",
+        "logs:CreateLogStream",
+        "logs:PutLogEvents",
+        "logs:DescribeLogStreams"
+      ],
+      "Resource": "arn:aws:logs:us-east-1:<ACCOUNT_ID>:log-group:/ecs/medical-rag-chatbot:*"
+    }
+  ]
+}
+```
+
+**How to create and attach:**
+```bash
+aws iam create-policy \
+  --policy-name medical-rag-cloudwatch-policy \
+  --policy-document file://infra/iam/cloudwatch-policy.json
+
+aws iam attach-role-policy \
+  --role-name medical-rag-ecs-task-role \
+  --policy-arn arn:aws:iam::<ACCOUNT_ID>:policy/medical-rag-cloudwatch-policy
+```
+
+---
+
+#### Complete IAM Summary Table
+
+| Resource | Type | Purpose | Attached To |
+|----------|------|---------|-------------|
+| `medical-rag-dev-user` | IAM User | Local dev & CI/CD programmatic access | — |
+| `medical-rag-ecs-task-role` | IAM Role | Runtime identity for ECS container | ECS Task Definition |
+| `medical-rag-ecs-execution-role` | IAM Role | ECS agent pulls image & writes logs | ECS Task Definition |
+| `medical-rag-bedrock-policy` | IAM Policy | Invoke Gemma 3 27B + Cohere embed models | Task role + dev user |
+| `medical-rag-ecr-policy` | IAM Policy | Push/pull Docker images to ECR | Dev user |
+| `medical-rag-cloudwatch-policy` | IAM Policy | Write app logs to CloudWatch | Task role |
+| `AmazonECSTaskExecutionRolePolicy` | AWS Managed Policy | Pull from ECR + write to CloudWatch | Execution role |
+
+---
+
+#### Enabling Bedrock Model Access
+
+Before any API calls succeed, the models must be enabled in the AWS Console:
+
+1. Open [AWS Bedrock Console](https://console.aws.amazon.com/bedrock/)
+2. Navigate to **Model access** → **Manage model access**
+3. Enable the following models:
+   - `Google → Gemma 3 27B Instruct`
+   - `Cohere → Embed English v3`
+4. Click **Save changes** — access is usually granted instantly
+
+---
+
+### Module 10: Deployment
+
+**Location:** `infra/`
+
+**What it does:** Packages the Flask application as a Docker container, pushes it to Amazon ECR, and deploys it on Amazon ECS (Fargate) behind an Application Load Balancer.
+
+---
+
+#### Deployment Architecture
+
+```
+┌──────────────┐     HTTPS      ┌─────────────────────┐
+│   Internet   │ ─────────────> │  Application Load   │
+│   (Users)    │                │  Balancer (ALB)     │
+└──────────────┘                └────────┬────────────┘
+                                         │ HTTP :5000
+                                         ↓
+                                ┌─────────────────────┐
+                                │   ECS Fargate       │
+                                │   Task (Container)  │
+                                │   medical-rag-app   │
+                                └────────┬────────────┘
+                                         │
+                          ┌──────────────┼──────────────┐
+                          ↓              ↓              ↓
+                   ┌─────────┐   ┌─────────────┐  ┌──────────┐
+                   │ Bedrock │   │  Pinecone   │  │CloudWatch│
+                   │(LLM +   │   │  (Vectors)  │  │  (Logs)  │
+                   │ Embed)  │   │             │  │          │
+                   └─────────┘   └─────────────┘  └──────────┘
+```
+
+---
+
+#### Step 1: Dockerfile
+
+**Location:** `Dockerfile`
+
+```dockerfile
+FROM python:3.11-slim
+
+WORKDIR /app
+
+COPY requirements.txt .
+RUN pip install --no-cache-dir -r requirements.txt
+
+COPY . .
+
+ENV PYTHONPATH=/app
+
+EXPOSE 5000
+
+CMD ["python", "app/application.py"]
+```
+
+---
+
+#### Step 2: Build and Push to Amazon ECR
+
+**Create ECR repository (one-time):**
+```bash
+aws ecr create-repository \
+  --repository-name medical-rag-chatbot \
+  --region us-east-1
+```
+
+**Authenticate Docker to ECR:**
+```bash
+aws ecr get-login-password --region us-east-1 | \
+  docker login --username AWS \
+  --password-stdin <ACCOUNT_ID>.dkr.ecr.us-east-1.amazonaws.com
+```
+
+**Build and push:**
+```bash
+# Build image
+docker build -t medical-rag-chatbot .
+
+# Tag for ECR
+docker tag medical-rag-chatbot:latest \
+  <ACCOUNT_ID>.dkr.ecr.us-east-1.amazonaws.com/medical-rag-chatbot:latest
+
+# Push to ECR
+docker push \
+  <ACCOUNT_ID>.dkr.ecr.us-east-1.amazonaws.com/medical-rag-chatbot:latest
+```
+
+---
+
+#### Step 3: ECS Cluster
+
+**Create ECS cluster (one-time):**
+```bash
+aws ecs create-cluster \
+  --cluster-name medical-rag-cluster \
+  --capacity-providers FARGATE \
+  --region us-east-1
+```
+
+---
+
+#### Step 4: ECS Task Definition
+
+**Location:** `infra/ecs/task-definition.json`
+
+```json
+{
+  "family": "medical-rag-task",
+  "networkMode": "awsvpc",
+  "requiresCompatibilities": ["FARGATE"],
+  "cpu": "1024",
+  "memory": "2048",
+  "executionRoleArn": "arn:aws:iam::<ACCOUNT_ID>:role/medical-rag-ecs-execution-role",
+  "taskRoleArn": "arn:aws:iam::<ACCOUNT_ID>:role/medical-rag-ecs-task-role",
+  "containerDefinitions": [
+    {
+      "name": "medical-rag-app",
+      "image": "<ACCOUNT_ID>.dkr.ecr.us-east-1.amazonaws.com/medical-rag-chatbot:latest",
+      "portMappings": [
+        {
+          "containerPort": 5000,
+          "protocol": "tcp"
+        }
+      ],
+      "environment": [
+        { "name": "AWS_REGION", "value": "us-east-1" },
+        { "name": "BEDROCK_MODEL_ID", "value": "google.gemma-3-27b-v1" },
+        { "name": "BEDROCK_EMBEDDING_MODEL_ID", "value": "cohere.embed-english-v3" },
+        { "name": "PINECONE_INDEX_NAME", "value": "medical-rag-index" }
+      ],
+      "secrets": [
+        {
+          "name": "PINECONE_API_KEY",
+          "valueFrom": "arn:aws:secretsmanager:us-east-1:<ACCOUNT_ID>:secret:medical-rag/pinecone-api-key"
+        }
+      ],
+      "logConfiguration": {
+        "logDriver": "awslogs",
+        "options": {
+          "awslogs-group": "/ecs/medical-rag-chatbot",
+          "awslogs-region": "us-east-1",
+          "awslogs-stream-prefix": "ecs"
+        }
+      },
+      "essential": true
+    }
+  ]
+}
+```
+
+**Register task definition:**
+```bash
+aws ecs register-task-definition \
+  --cli-input-json file://infra/ecs/task-definition.json
+```
+
+> **Note:** `AWS_ACCESS_KEY_ID` and `AWS_SECRET_ACCESS_KEY` are intentionally absent from the task definition — the ECS task role (`medical-rag-ecs-task-role`) provides credentials automatically via the instance metadata service.
+
+---
+
+#### Step 5: ECS Service
+
+**Create service:**
+```bash
+aws ecs create-service \
+  --cluster medical-rag-cluster \
+  --service-name medical-rag-service \
+  --task-definition medical-rag-task \
+  --desired-count 1 \
+  --launch-type FARGATE \
+  --network-configuration "awsvpcConfiguration={subnets=[subnet-xxxxxx],securityGroups=[sg-xxxxxx],assignPublicIp=ENABLED}" \
+  --region us-east-1
+```
+
+**Update service (redeploy after image push):**
+```bash
+aws ecs update-service \
+  --cluster medical-rag-cluster \
+  --service medical-rag-service \
+  --force-new-deployment
+```
+
+---
+
+#### Step 6: Secrets Management (AWS Secrets Manager)
+
+Store sensitive values — never hardcode them in the task definition or image:
+
+```bash
+# Store Pinecone API key
+aws secretsmanager create-secret \
+  --name medical-rag/pinecone-api-key \
+  --secret-string "your-pinecone-key"
+```
+
+Grant the ECS task role permission to read the secret:
+```json
+{
+  "Version": "2012-10-17",
+  "Statement": [
+    {
+      "Effect": "Allow",
+      "Action": [
+        "secretsmanager:GetSecretValue"
+      ],
+      "Resource": "arn:aws:secretsmanager:us-east-1:<ACCOUNT_ID>:secret:medical-rag/*"
+    }
+  ]
+}
+```
+
+```bash
+aws iam put-role-policy \
+  --role-name medical-rag-ecs-task-role \
+  --policy-name SecretsManagerAccess \
+  --policy-document file://infra/iam/secrets-policy.json
+```
+
+---
+
+#### Step 7: CloudWatch Logs
+
+**Create log group:**
+```bash
+aws logs create-log-group \
+  --log-group-name /ecs/medical-rag-chatbot \
+  --region us-east-1
+```
+
+**View live logs:**
+```bash
+aws logs tail /ecs/medical-rag-chatbot --follow
+```
+
+---
+
+#### Deployment Checklist
+
+| Step | Command / Action | Status |
+|------|-----------------|--------|
+| Enable Bedrock models | AWS Console → Bedrock → Model access | ☐ |
+| Create IAM roles & policies | `aws iam create-role / create-policy` | ☐ |
+| Create ECR repository | `aws ecr create-repository` | ☐ |
+| Build & push Docker image | `docker build / push` | ☐ |
+| Create ECS cluster | `aws ecs create-cluster` | ☐ |
+| Store secrets in Secrets Manager | `aws secretsmanager create-secret` | ☐ |
+| Register task definition | `aws ecs register-task-definition` | ☐ |
+| Create ECS service | `aws ecs create-service` | ☐ |
+| Verify health endpoint | `curl http://<ALB-DNS>/api/health` | ☐ |
+
+---
+
+#### Environment Variable Reference
+
+| Variable | Source in ECS | Source locally |
+|----------|--------------|----------------|
+| `AWS_REGION` | Task definition `environment` | `.env` |
+| `BEDROCK_MODEL_ID` | Task definition `environment` | `.env` |
+| `BEDROCK_EMBEDDING_MODEL_ID` | Task definition `environment` | `.env` |
+| `PINECONE_INDEX_NAME` | Task definition `environment` | `.env` |
+| `PINECONE_API_KEY` | Secrets Manager via `secrets` | `.env` |
+| AWS credentials | ECS task role (automatic) | `.env` (`AWS_ACCESS_KEY_ID` / `AWS_SECRET_ACCESS_KEY`) |
+
+---
+
 ## End-to-End RAG Workflow
 
 ### Complete User Query Flow
@@ -1844,6 +2326,100 @@ logs/
 
 ---
 
+## AWS IAM, Roles & Policy Requirements
+
+See [Module 9: AWS IAM Setup](#module-9-aws-iam-setup) for full details.
+
+### Quick Reference
+
+#### Required IAM Resources
+
+| Resource | Type | Required For |
+|----------|------|-------------|
+| `medical-rag-dev-user` | IAM User | Local development, CI/CD |
+| `medical-rag-ecs-task-role` | IAM Role | ECS container runtime access to Bedrock |
+| `medical-rag-ecs-execution-role` | IAM Role | ECS agent pulling images and writing logs |
+| `medical-rag-bedrock-policy` | Customer Policy | `bedrock:InvokeModel` on Gemma 3 27B + Cohere |
+| `medical-rag-ecr-policy` | Customer Policy | ECR image push/pull |
+| `medical-rag-cloudwatch-policy` | Customer Policy | CloudWatch log writes |
+| `AmazonECSTaskExecutionRolePolicy` | AWS Managed | ECR pull + CloudWatch (execution role) |
+
+#### Minimum Bedrock Permissions
+
+```json
+{
+  "Action": ["bedrock:InvokeModel", "bedrock:InvokeModelWithResponseStream"],
+  "Resource": [
+    "arn:aws:bedrock:us-east-1::foundation-model/google.gemma-3-27b-v1",
+    "arn:aws:bedrock:us-east-1::foundation-model/cohere.embed-english-v3"
+  ]
+}
+```
+
+#### Common IAM Errors
+
+| Error | Cause | Fix |
+|-------|-------|-----|
+| `AccessDeniedException: bedrock:InvokeModel` | Missing Bedrock policy | Attach `medical-rag-bedrock-policy` to the role/user |
+| `AccessDeniedException` on ECS task start | Execution role missing | Attach `AmazonECSTaskExecutionRolePolicy` to execution role |
+| `ResourceNotFoundException` on model invoke | Model not enabled in Bedrock | Enable model via AWS Console → Bedrock → Model access |
+| `AuthorizationError` from Pinecone | Missing API key | Verify `PINECONE_API_KEY` in Secrets Manager or `.env` |
+
+---
+
+## Application Deployment
+
+See [Module 10: Deployment](#module-10-deployment) for full details.
+
+### Quick Start (Local Docker)
+
+```bash
+# Build image
+docker build -t medical-rag-chatbot .
+
+# Run locally with .env
+docker run -p 5000:5000 --env-file .env medical-rag-chatbot
+
+# Test
+curl http://localhost:5000/api/health
+```
+
+### Quick Start (ECS Fargate)
+
+```bash
+# 1. Push image to ECR
+aws ecr get-login-password --region us-east-1 | \
+  docker login --username AWS --password-stdin <ACCOUNT_ID>.dkr.ecr.us-east-1.amazonaws.com
+docker build -t medical-rag-chatbot .
+docker tag medical-rag-chatbot:latest \
+  <ACCOUNT_ID>.dkr.ecr.us-east-1.amazonaws.com/medical-rag-chatbot:latest
+docker push <ACCOUNT_ID>.dkr.ecr.us-east-1.amazonaws.com/medical-rag-chatbot:latest
+
+# 2. Register task and deploy
+aws ecs register-task-definition \
+  --cli-input-json file://infra/ecs/task-definition.json
+aws ecs update-service \
+  --cluster medical-rag-cluster \
+  --service medical-rag-service \
+  --force-new-deployment
+```
+
+### Infrastructure File Structure
+
+```
+infra/
+├── iam/
+│   ├── ecs-trust-policy.json         # Trust policy for ECS task role
+│   ├── bedrock-policy.json           # Bedrock InvokeModel permissions
+│   ├── ecr-policy.json               # ECR push/pull permissions
+│   ├── cloudwatch-policy.json        # CloudWatch log write permissions
+│   └── secrets-policy.json           # Secrets Manager read permissions
+└── ecs/
+    └── task-definition.json          # ECS Fargate task definition
+```
+
+---
+
 ## Contributing
 
 ### Development Setup
@@ -1900,8 +2476,7 @@ For questions or support:
 
 ## Acknowledgments
 
-- **OpenAI** - Embeddings API
-- **AWS Bedrock** - Gemma 3 27B LLM
+- **AWS Bedrock** - Gemma 3 27B LLM and Cohere embeddings
 - **Pinecone** - Vector database
 - **LangChain** - RAG framework
 - **Medical Encyclopedia** - Knowledge source
