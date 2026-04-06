@@ -8,3 +8,5 @@ __pycache__/
 logs/
 *.log
 app/evaluation/
+.claude
+medical-rag-cicd-user_accessKeys.csv
