@@ -43,8 +43,10 @@ A Medical RAG (Retrieval-Augmented Generation) chatbot that answers medical ques
 ### Key Features
 
 - ✅ **Semantic Search**: HNSW algorithm for fast, accurate document retrieval
+- ✅ **Semantic Chunking**: AWS Bedrock Cohere-powered SemanticChunker with 95th-percentile breakpoints; falls back to RecursiveCharacterTextSplitter when Bedrock is unavailable
 - ✅ **Medical Knowledge Base**: 759-page medical encyclopedia with 7,590 chunks
-- ✅ **Advanced Filtering**: Search by medical category (cardiovascular, endocrine, etc.)
+- ✅ **Rich Metadata Extraction**: Category, sub-category, section type, ICD codes, medications, measurements, and medical term density per chunk
+- ✅ **Advanced Filtering**: Filter chunks by medical category, section type, or medical term density
 - ✅ **Source Citations**: Transparent answers with document references
 - ✅ **Conversational Chat**: Maintains conversation history for context
 - ✅ **Production Ready**: Flask API + AngularJS frontend
@@ -137,6 +139,8 @@ A Medical RAG (Retrieval-Augmented Generation) chatbot that answers medical ques
 | **Frontend** | AngularJS | User interface |
 | **PDF Processing** | PyPDF | Document loading |
 | **Text Processing** | LangChain | Chunking and pipelines |
+| **Semantic Chunking** | LangChain SemanticChunker + Bedrock Cohere | Meaning-aware chunk splitting (primary) |
+| **Fallback Chunking** | LangChain RecursiveCharacterTextSplitter | Fixed-size splitting when Bedrock unavailable |
 
 ### Python Libraries
 ```
@@ -316,103 +320,183 @@ except Exception as e:
 
 **Location:** `app/components/pdf_loader.py`
 
-**What it does:** Loads medical PDFs, extracts text, chunks content, and extracts metadata
+**What it does:** Loads medical PDFs, cleans text, performs semantic or recursive chunking, extracts rich medical metadata, and supports filtering and summarisation of document chunks
 
 #### Class: `MedicalPDFLoader`
 
-**What this class does:** Manages PDF loading and text processing for medical documents
+**What this class does:** Manages the full PDF ingestion pipeline for medical documents — loading, cleaning, semantic chunking, and metadata enrichment
 
 **Constructor:**
 ```python
-def __init__(self, data_path: str = Config.DATAPATH)
+def __init__(self)
 ```
-**What it does:** Initializes PDF loader with data directory path
+**What it does:** Initialises the loader with configuration from `Config`. Attempts to create a `SemanticChunker` backed by AWS Bedrock Cohere embeddings. If Bedrock is unavailable, falls back silently to `RecursiveCharacterTextSplitter`.
+
+**Chunking strategy:**
+
+| Strategy | When used | Details |
+|----------|-----------|---------|
+| **SemanticChunker** (primary) | Bedrock reachable | 95th-percentile breakpoint on cosine distances — ideal for dense medical text |
+| **RecursiveCharacterTextSplitter** (fallback) | Bedrock unavailable | `chunk_size` and `chunk_overlap` from `Config`; separators: `\n\n`, `\n`, `. `, `; `, `, `, ` ` |
 
 **Methods:**
 
-##### Function: `load_pdf(file_path)`
+##### Function: `load_medical_pdf(filename)`
 
-**What this function does:** Loads a single PDF file and extracts all pages
+**What this function does:** Loads a single PDF by filename (resolved against `Config.DATAPATH`), cleans each page, skips near-empty pages (<100 chars), and enriches every page with medical metadata
 
 **Parameters:**
-- `file_path`: Path to PDF file
+- `filename`: PDF filename (e.g. `"The_GALE_ENCYCLOPEDIA_of_MEDICINE_SECOND.pdf"`)
 
-**Returns:** List of Document objects with page content and metadata
+**Returns:** `List[Document]` — enhanced documents with medical metadata merged into `doc.metadata`
 
 **Example:**
 ```python
 loader = MedicalPDFLoader()
-pages = loader.load_pdf("data/medical_encyclopedia.pdf")
+documents = loader.load_medical_pdf("The_GALE_ENCYCLOPEDIA_of_MEDICINE_SECOND.pdf")
 # Returns: [Document(page_content="...", metadata={...}), ...]
 ```
 
-##### Function: `chunk_documents(documents)`
+##### Function: `split_with_metadata_preservation(documents)`
 
-**What this function does:** Splits documents into smaller chunks for embedding
+**What this function does:** Splits a list of documents into chunks while preserving all existing metadata and adding chunk-level fields
 
 **Parameters:**
-- `documents`: List of Document objects
+- `documents`: List of `Document` objects (output of `load_medical_pdf`)
 
-**Returns:** List of chunked Document objects
+**Returns:** `List[Document]` — chunked documents with additional metadata
 
-**Process:**
-1. Uses RecursiveCharacterTextSplitter
-2. Chunk size: 500 characters
-3. Chunk overlap: 50 characters
-4. Preserves metadata
+**Chunk metadata added:**
+
+| Field | Description |
+|-------|-------------|
+| `chunk_id` | Sequential chunk index |
+| `chunk_size` | Character count of the chunk |
+| `total_chunks` | Total number of chunks produced |
+| `chunk_selection_type` | Section type identified for this chunk |
 
 **Example:**
 ```python
-chunks = loader.chunk_documents(pages)
-# 759 pages → 7,590 chunks
+chunks = loader.split_with_metadata_preservation(documents)
 ```
 
-##### Function: `extract_medical_metadata(chunk)`
+##### Function: `extract_medical_metadata(text, page_num, filename)`
 
-**What this function does:** Extracts medical-specific metadata from text chunk
+**What this function does:** Extracts a comprehensive set of medical metadata fields from page text
 
 **Parameters:**
-- `chunk`: Document chunk
+- `text`: Cleaned page content
+- `page_num`: Page number from PDF
+- `filename`: Source PDF filename
 
-**Returns:** Enhanced chunk with medical metadata
+**Returns:** `Dict` with the following fields:
 
-**Metadata extracted:**
-- `category`: Medical category (cardiovascular, endocrine, etc.)
-- `section_type`: Content type (definition, symptoms, treatment)
-- `has_symptoms`: Boolean flag
-- `has_treatments`: Boolean flag
-- `has_diagnosis`: Boolean flag
-- `medical_term_density`: Percentage of medical terms
+| Field | Type | Description |
+|-------|------|-------------|
+| `source` | str | Source filename |
+| `page` | int | Page number |
+| `processed_date` | str | Timestamp of processing |
+| `doc_type` | str | Always `"medical_encyclopedia"` |
+| `category` | str | Medical category (see `extract_category`) |
+| `sub_category` | str | Specific condition/disease name |
+| `has_definitions` | bool | Contains definitional language |
+| `has_symptoms` | bool | Contains symptom information |
+| `has_treatments` | bool | Contains treatment information |
+| `has_diagnosis` | bool | Contains diagnostic information |
+| `medical_term_density` | float | Ratio of medical-suffix words to total words |
+| `section_type` | str | Section classification (see `_identify_section_type`) |
+| `char_count` | int | Character count of the page |
+| `word_count` | int | Word count of the page |
+| `medications` | list | Extracted medication names (up to 5) |
+| `icd_codes` | list | Extracted ICD codes (up to 3) |
+| `has_measurements` | bool | Contains dosage/measurement values |
+| `measurement_count` | int | Number of measurements found |
 
 **Example:**
 ```python
-chunk = loader.extract_medical_metadata(chunk)
-# chunk.metadata = {
+meta = loader.extract_medical_metadata(text, page_num=42, filename="encyclopedia.pdf")
+# {
 #     "category": "endocrine",
+#     "sub_category": "Diabetes Mellitus",
 #     "section_type": "symptoms",
 #     "has_symptoms": True,
-#     "medical_term_density": 0.023
+#     "medical_term_density": 0.023,
+#     "icd_codes": ["E11"],
+#     ...
 # }
 ```
 
-##### Function: `process_all_pdfs()`
+##### Function: `extract_category(text)`
 
-**What this function does:** Complete pipeline - loads all PDFs, chunks, and extracts metadata
+**What this function does:** Classifies page text into one of 12 medical categories by keyword matching
 
-**Returns:** List of processed document chunks ready for embedding
+**Returns:** One of `cardiovascular`, `respiratory`, `neurological`, `endocrine`, `gastrointestinal`, `musculoskeletal`, `dermatological`, `infectious`, `oncology`, `immunology`, `nephrology`, `hematology`, or `general`
 
-**Process:**
-1. Find all PDFs in data directory
-2. Load each PDF
-3. Chunk into 500-character segments
-4. Extract medical metadata
-5. Return processed chunks
+##### Function: `clean_medical_text(text)`
+
+**What this function does:** Normalises raw OCR text from medical PDFs — collapses whitespace, strips page numbers, removes encyclopedia headers, normalises bullet characters, and fixes common OCR artefacts
+
+**Parameters:**
+- `text`: Raw page content string
+
+**Returns:** Cleaned text string
+
+##### Function: `process_medical_pdf(filename)`
+
+**What this function does:** End-to-end pipeline: load → clean → enrich metadata → split into chunks
+
+**Parameters:**
+- `filename`: PDF filename
+
+**Returns:** `List[Document]` — fully processed, metadata-enriched chunks ready for embedding
 
 **Example:**
 ```python
 loader = MedicalPDFLoader()
-chunks = loader.process_all_pdfs()
-# Returns: 7,590 processed chunks
+chunks = loader.process_medical_pdf("The_GALE_ENCYCLOPEDIA_of_MEDICINE_SECOND.pdf")
+print(f"Produced {len(chunks)} chunks")
+```
+
+##### Function: `filter_chunks_by_metadata(chunks, category, section_type, min_medical_density)`
+
+**What this function does:** Filters a list of chunks by optional metadata criteria
+
+**Parameters:**
+- `chunks`: List of Document chunks
+- `category` *(optional)*: Retain only chunks matching this medical category
+- `section_type` *(optional)*: Retain only chunks matching this section type
+- `min_medical_density` *(optional, default 0.0)*: Applied only when value > 0.5; filters by minimum `medical_term_density`
+
+**Returns:** Filtered `List[Document]`
+
+**Example:**
+```python
+cardio_chunks = loader.filter_chunks_by_metadata(chunks, category="cardiovascular")
+treatment_chunks = loader.filter_chunks_by_metadata(chunks, section_type="treatment")
+```
+
+##### Function: `get_metadata_summary(chunks)`
+
+**What this function does:** Produces aggregate statistics across all chunks
+
+**Parameters:**
+- `chunks`: List of Document chunks
+
+**Returns:** `Dict` with:
+- `total_chunks`: Total chunk count
+- `categories`: Frequency map of medical categories
+- `section_types`: Frequency map of section types
+- `chunks_with_symptoms` / `chunks_with_treatments` / `chunks_with_diagnosis`: Counts per section type
+- `avg_medical_density`: Mean `medical_term_density` across chunks
+
+**Example:**
+```python
+summary = loader.get_metadata_summary(chunks)
+# {
+#     "total_chunks": 7590,
+#     "categories": {"endocrine": 312, "cardiovascular": 280, ...},
+#     "avg_medical_density": 0.018
+# }
 ```
 
 ---

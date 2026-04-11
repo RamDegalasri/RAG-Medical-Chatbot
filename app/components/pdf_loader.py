@@ -1,7 +1,10 @@
 import os
+import boto3
 
 from langchain_community.document_loaders import PyPDFLoader
+from langchain_community.embeddings import BedrockEmbeddings
 from langchain_text_splitters import RecursiveCharacterTextSplitter
+from langchain_experimental.text_splitter import SemanticChunker
 from langchain.schema import Document
 
 from app.common.logger import MedicalRAGLogger
@@ -14,20 +17,51 @@ from datetime import datetime
 
 
 class MedicalPDFLoader:
-    """Enhanced PDF loader with metadata handling"""
-    
+    """Enhanced PDF loader with semantic chunking and metadata handling"""
+
     def __init__(self):
         self.logger = MedicalRAGLogger(__name__)
         self.data_path = Config.DATAPATH
         self.chunk_size = Config.CHUNK_SIZE
         self.chunk_overlap = Config.CHUNK_OVERLAP
 
-        # Medical specific text splitter
+        # Semantic chunker using AWS Bedrock Cohere embeddings (preferred)
+        # Falls back to RecursiveCharacterTextSplitter when Bedrock is unavailable
+        self.semantic_chunker = None
+        try:
+            boto3_session = boto3.Session(
+                aws_access_key_id=Config.AWS_ACCESS_KEY_ID,
+                aws_secret_access_key=Config.AWS_SECRET_ACCESS_KEY,
+                region_name=Config.AWS_REGION,
+            )
+            bedrock_client = boto3_session.client("bedrock-runtime")
+            bedrock_embeddings = BedrockEmbeddings(
+                model_id=Config.AWS_BEDROCK_EMBEDDING_MODEL,
+                client=bedrock_client,
+            )
+            # breakpoint_threshold_type options:
+            #   "percentile"         – split where cosine distance > Xth percentile (default)
+            #   "standard_deviation" – split where distance > mean + X * std
+            #   "interquartile"      – split based on IQR of distances
+            # 95th-percentile works well for dense, varied medical text.
+            self.semantic_chunker = SemanticChunker(
+                embeddings=bedrock_embeddings,
+                breakpoint_threshold_type="percentile",
+                breakpoint_threshold_amount=95,
+            )
+            self.logger.logger.info("Semantic chunker initialised with AWS Bedrock Cohere embeddings")
+        except Exception as e:
+            self.logger.logger.warning(
+                f"Could not initialise SemanticChunker ({e}). "
+                "Falling back to RecursiveCharacterTextSplitter."
+            )
+
+        # Fallback: fixed-size recursive splitter
         self.text_splitter = RecursiveCharacterTextSplitter(
-            chunk_size = self.chunk_size,
-            chunk_overlap = self.chunk_overlap,
-            length_function = len,
-            separators = ["\n\n", "\n", ". ", "; ", ", ", " "]
+            chunk_size=self.chunk_size,
+            chunk_overlap=self.chunk_overlap,
+            length_function=len,
+            separators=["\n\n", "\n", ". ", "; ", ", ", " "],
         )
 
     def extract_medical_metadata(self, text: str, page_num: int, filename: str) -> Dict:
@@ -451,18 +485,3 @@ if __name__ == "__main__":
         
     except Exception as e:
         print(f"Error: {e}")
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-

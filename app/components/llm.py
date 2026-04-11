@@ -144,7 +144,7 @@ if __name__ == "__main__":
     except Exception as e:
         print(f"x Error initializing LLM: {e}")
         print("\nTroubleshooting:")
-        print(" 1. Check AWS credentials in .env file")
+        print("  1. Check AWS credentials in .env file")
         print("  2. Verify AWS_ACCESS_KEY_ID is set")
         print("  3. Verify AWS_SECRET_ACCESS_KEY is set")
         print("  4. Ensure Bedrock is enabled in your AWS account")
