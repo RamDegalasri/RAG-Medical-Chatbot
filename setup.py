@@ -5,7 +5,7 @@ with open("requirements.txt", "r") as f:
 
 setup(
     name = "Medical RAG Chatbot",
-    version = "2.0.0",
+    version = "2.1.0",
     author = "Sriram Degala",
     packages = find_packages(),
     install_requires = requirements,

@@ -313,6 +313,7 @@ class MedicalPDFLoader:
     def split_with_metadata_preservation(self, documents: List[Document]) -> List[Document]:
         """
         Split documents while preserving metadata
+        Uses semantic chunking if available, otherwise falls back to recursive chunking.
         
         Args:
             documents: List of document objects
@@ -321,23 +322,115 @@ class MedicalPDFLoader:
             List of chunked Documents with preserved metadata
         """
         try:
-            chunks = self.text_splitter.split_documents(documents)
+            # Check if semantic chunker is available and use it
+            if self.semantic_chunker is not None:
+                self.logger.logger.info("Performing semantic chunking with Bedrock embeddings...")
+                chunks = self._semantic_split(documents)
+                chunking_method = "semantic"
+            
+            else:
+                self.logger.logger.info("Performing recursive character text splitting...")
+                chunks = self.text_splitter.split_documents(documents)
 
             # Add chunk-specific metadata
             for i, chunk in enumerate(chunks):
                 chunk.metadata["chunk_id"] = i
                 chunk.metadata["chunk_size"] = len(chunk.page_content)
                 chunk.metadata["total_chunks"] = len(chunks)
-
+                chunk.metadata["chunking_method"] = chunking_method
                 chunk.metadata["chunk_selection_type"] = self._identify_section_type(chunk.page_content)
 
             self.logger.log_embedding(len(chunks), "text-split")
+            self.logger.logger.info(f"Created {len(chunks)} chunks using {chunking_method} chunking method")
 
             return chunks
 
         except Exception as e:
             self.logger.log_error(e, context = "Splitting documents with metadata preservation")
             raise
+
+    def _semantic_split(self, documents: List[Document]) -> List[Document]:
+        """
+        Perform semantic chunking with metadata preservation and fallback handling
+
+        Args:
+            documents: List of documents to chunk semantically
+
+        Returns:
+            List of semantically chunked documents with preserved metadata
+        """
+        all_chunks = []
+        failed_pages = 0
+
+        # Cohere embed-english-v3 via Bedrock has a 2048-char per-sentence limit.
+        # Pre-split any text that exceeds this before handing it to the semantic chunker.
+        COHERE_MAX_CHARS = 2048
+
+        for doc in documents:
+            try:
+                text = doc.page_content
+                # If the whole page is within the limit, chunk normally.
+                # Otherwise break it into ≤2048-char segments on sentence boundaries first.
+                if len(text) > COHERE_MAX_CHARS:
+                    import re
+                    sentences = re.split(r'(?<=[.!?])\s+', text)
+                    segments, current = [], ""
+                    for sent in sentences:
+                        # A single sentence longer than the limit must be hard-truncated.
+                        if len(sent) > COHERE_MAX_CHARS:
+                            sent = sent[:COHERE_MAX_CHARS]
+                        if len(current) + len(sent) + 1 > COHERE_MAX_CHARS:
+                            if current:
+                                segments.append(current)
+                            current = sent
+                        else:
+                            current = (current + " " + sent).strip() if current else sent
+                    if current:
+                        segments.append(current)
+                    texts_to_chunk = segments
+                else:
+                    texts_to_chunk = [text]
+
+                # Create semantic chunks for this document
+                text_chunks = self.semantic_chunker.create_documents(
+                    texts=texts_to_chunk,
+                    metadatas=[doc.metadata] * len(texts_to_chunk)
+                )
+
+                # Preserve and merge original document metadata in each chunk
+                for chunk in text_chunks:
+                    # Merge original metadata (source, page, category, etc.)
+                    chunk.metadata.update(doc.metadata)
+
+                all_chunks.extend(text_chunks)
+
+            except Exception as e:
+                # Log warning and fall back to recursive splitting for this page
+                page_num = doc.metadata.get('page', 'unknown')
+                self.logger.logger.warning(
+                    f"Semantic chunking failed for page {page_num}: {str(e)}. "
+                    f"Falling back to recursive chunking for this page."
+                )
+                failed_pages += 1
+
+                # Fallback to recursive splitting for this specific document
+                try:
+                    fallback_chunks = self.text_splitter.split_documents([doc])
+                    all_chunks.extend(fallback_chunks)
+                except Exception as fallback_error:
+                    self.logger.logger.error(
+                        f"Both semantic and recursive chunking failed for page {page_num}: {fallback_error}"
+                    )
+                    # Skip this page entirely if both methods fails
+                    continue
+
+        if failed_pages > 0:
+            self.logger.logger.warning(
+                f"Semantic chunking failed for {failed_pages} pages. "
+                f"Used recursive fallback for those pages"
+            )
+
+        return all_chunks
 
     def process_medical_pdf(self, filename: str) -> List[Document]:
         """
